@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card ks-card">
+  <div class="card-body">
+    <h4 class="fw-bold">{{ listing.car_name }}</h4>
+    <div class="row">
+      <div class="col-md-4">
+        <img src="{{ listing.image_url or url_for('static', filename='img/placeholder.svg') }}"
+             class="img-fluid rounded" alt="car"
+             onerror="this.src='{{ url_for('static', filename='img/placeholder.svg') }}'">
+      </div>
+      <div class="col-md-8">
+        <ul class="list-group list-group-flush">
+          <li class="list-group-item">연식: {{ listing.car_year }}</li>
+          <li class="list-group-item">주행거리: {{ listing.car_km }} km</li>
+          <li class="list-group-item">수출/내수: {{ listing.imported }}</li>
+          <li class="list-group-item">지역: {{ listing.sido }}</li>
+        </ul>
+        <div class="mt-3 d-flex gap-2">
+          <button id="predict" class="btn btn-outline-primary">AI 정량 예측가</button>
+          <button id="report" class="btn btn-primary">AI 정성 분석 리포트 발행</button>
+        </div>
+        <div id="predict-out" class="mt-2 fw-bold"></div>
+      </div>
+    </div>
+    <hr>
+    <h6 class="fw-bold">정성 소견 리포트</h6>
+    <div id="report-out" class="text-muted">{{ report.report_text if report else "아직 생성되지 않았습니다." }}</div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const carNo = {{ listing.car_no|tojson }};
+document.getElementById('predict').onclick = async () => {
+  const q = new URLSearchParams({maker:{{ (listing.maker_no or '')|tojson }}, car_year:{{ (listing.car_year or '')|tojson }}, car_km:{{ (listing.car_km or '')|tojson }}, imported:{{ (listing.imported or '')|tojson }}});
+  const r = await fetch('/api/predict?' + q); const d = await r.json();
+  document.getElementById('predict-out').textContent = d.ok ? `예상 낙찰가: ${d.predicted_price} 만원` : d.error;
+  if (!d.ok) toast(d.error, 'warning');
+};
+document.getElementById('report').onclick = async () => {
+  toast('리포트 생성 중…', 'secondary');
+  const r = await fetch('/api/report/' + encodeURIComponent(carNo), {method:'POST'});
+  const d = await r.json();
+  if (d.ok) { document.getElementById('report-out').textContent = d.text; toast('리포트 완료', 'success'); }
+  else { toast(d.error || '임시 리포트 생성 불가능', 'danger'); }
+};
+</script>
+{% endblock %}

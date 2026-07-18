@@ -1,0 +1,20 @@
+services:
+  web:
+    build: .
+    container_name: wecarcar1-web
+    ports:
+      - "8090:5000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: sqlite:///instance/wecarcar1_auto.db
+      ENABLE_SCHEDULER: "1"
+    volumes:
+      - ./instance:/app/instance
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=5)"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 40s

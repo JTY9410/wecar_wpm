@@ -1,0 +1,13 @@
+{
+  "login": "로그인",
+  "search": "검색",
+  "maker": "제조사",
+  "model": "차명",
+  "grade": "세부등급",
+  "year": "연식",
+  "hammer_avg": "낙찰가평균",
+  "start_avg": "시작가평균",
+  "mom": "전월대비",
+  "accident_free": "무사고",
+  "report_fail": "임시 리포트 생성 불가능"
+}

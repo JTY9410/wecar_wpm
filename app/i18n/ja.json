@@ -1,0 +1,13 @@
+{
+  "login": "ログイン",
+  "search": "検索",
+  "maker": "メーカー",
+  "model": "車名",
+  "grade": "グレード",
+  "year": "年式",
+  "hammer_avg": "落札価格平均",
+  "start_avg": "開始価格平均",
+  "mom": "前月比",
+  "accident_free": "無事故",
+  "report_fail": "レポートを一時的に生成できません"
+}

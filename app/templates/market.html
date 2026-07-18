@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block page_title %}도매 시세 분석{% endblock %}
+{% block content %}
+<!-- [UI Flow: 제조사→모델→상세모델→연식→유종→AWD 캐스케이드 · 시세 그리드] -->
+<div class="glass-card p-3 mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-6 col-md">
+      <label class="form-label small mb-1">제조사</label>
+      <select id="f-maker" class="form-select">
+        <option value="">선택</option>
+        {% for m in makers %}<option>{{ m }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md">
+      <label class="form-label small mb-1">모델</label>
+      <select id="f-model" class="form-select" disabled><option value="">모델</option></select>
+    </div>
+    <div class="col-6 col-md">
+      <label class="form-label small mb-1">상세모델</label>
+      <select id="f-mdetail" class="form-select" disabled><option value="">상세모델</option></select>
+    </div>
+    <div class="col-6 col-md">
+      <label class="form-label small mb-1">년식</label>
+      <select id="f-year" class="form-select" disabled><option value="">년식</option></select>
+    </div>
+    <div class="col-6 col-md">
+      <label class="form-label small mb-1">유종</label>
+      <select id="f-fuel" class="form-select" disabled><option value="">유종</option></select>
+    </div>
+    <div class="col-6 col-md">
+      <label class="form-label small mb-1">AWD</label>
+      <select id="f-awd" class="form-select">
+        <option value="">전체</option>
+        <option>AWD</option>
+        <option>2WD</option>
+        <option>미확인</option>
+      </select>
+    </div>
+    <div class="col-auto">
+      <button id="f-search" class="btn btn-primary px-4">검색</button>
+    </div>
+  </div>
+</div>
+<div class="glass-card p-0 overflow-hidden">
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead>
+        <tr>
+          <th>카코드</th><th>상세모델</th><th>등급</th><th>년식</th><th>유종</th><th>AWD</th>
+          <th>무사고</th><th>주행구간</th><th>시작가</th><th>낙찰가</th><th>전월%</th><th>표본</th>
+        </tr>
+      </thead>
+      <tbody id="grid">
+        <tr><td colspan="12" class="text-center text-muted py-5">조건을 선택 후 검색하세요.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const g = id => document.getElementById(id);
+function resetSelect(sel, label) {
+  sel.innerHTML = `<option value="">${label}</option>`;
+  sel.disabled = true;
+}
+async function fill(sel, url, label) {
+  sel.disabled = true;
+  sel.innerHTML = `<option value="">불러오는 중…</option>`;
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('load failed');
+    const data = await r.json();
+    sel.innerHTML = `<option value="">${label}</option>` + data.map(v => `<option>${v}</option>`).join('');
+    sel.disabled = false;
+  } catch (e) {
+    sel.innerHTML = `<option value="">${label}</option>`;
+    toast('필터 목록을 불러오지 못했습니다.', 'warning');
+  }
+}
+g('f-maker').onchange = () => {
+  resetSelect(g('f-model'), '모델');
+  resetSelect(g('f-mdetail'), '상세모델');
+  resetSelect(g('f-year'), '년식');
+  resetSelect(g('f-fuel'), '유종');
+  if (g('f-maker').value) {
+    fill(g('f-model'), `/api/cascade/models?maker=${encodeURIComponent(g('f-maker').value)}`, '모델');
+    fill(g('f-fuel'), `/api/cascade/fuels?maker=${encodeURIComponent(g('f-maker').value)}`, '유종');
+  }
+};
+g('f-model').onchange = () => {
+  resetSelect(g('f-mdetail'), '상세모델');
+  resetSelect(g('f-year'), '년식');
+  if (g('f-model').value) {
+    fill(g('f-mdetail'), `/api/cascade/car_names?maker=${encodeURIComponent(g('f-maker').value)}&model_name=${encodeURIComponent(g('f-model').value)}`, '상세모델');
+  }
+};
+g('f-mdetail').onchange = () => {
+  resetSelect(g('f-year'), '년식');
+  if (g('f-mdetail').value) {
+    fill(g('f-year'), `/api/cascade/years?maker=${encodeURIComponent(g('f-maker').value)}&model_name=${encodeURIComponent(g('f-model').value)}&mdetail_name=${encodeURIComponent(g('f-mdetail').value)}`, '년식');
+  }
+};
+g('f-search').onclick = async () => {
+  if (!g('f-maker').value) return toast('제조사를 선택하세요.', 'warning');
+  const q = new URLSearchParams({
+    maker: g('f-maker').value,
+    model_name: g('f-model').value,
+    mdetail_name: g('f-mdetail').value,
+    car_year: g('f-year').value,
+    fuel: g('f-fuel').value,
+    awd: g('f-awd').value,
+  });
+  g('grid').innerHTML = '<tr><td colspan="12" class="text-center py-4 text-muted">검색 중…</td></tr>';
+  try {
+    const r = await fetch('/api/grid?' + q);
+    const rows = await r.json();
+    if (!rows.length) {
+      g('grid').innerHTML = '<tr><td colspan="12" class="text-center text-muted py-4">결과 없음</td></tr>';
+      return;
+    }
+    g('grid').innerHTML = rows.map(x => `<tr>
+      <td class="small text-muted">${x.car_code||''}</td>
+      <td>${x.mdetail_name||x.car_name||''}</td>
+      <td class="small">${[x.grade_name,x.gdetail_name].filter(Boolean).join(' / ')||'-'}</td>
+      <td>${x.car_year||''}</td>
+      <td>${x.fuel||''}</td>
+      <td>${x.awd||''}</td>
+      <td>${x.is_accident_free}</td>
+      <td>${x.km_bin||''}</td>
+      <td>${x.start_avg?.toFixed?.(0)||'-'}</td>
+      <td class="fw-semibold">${x.hammer_avg?.toFixed?.(0)||'-'}</td>
+      <td>${x.mom_pct==null?'-':x.mom_pct+'%'}</td>
+      <td>${x.sample_count||0}</td>
+    </tr>`).join('');
+  } catch (e) {
+    g('grid').innerHTML = '<tr><td colspan="12" class="text-center text-danger py-4">검색 실패</td></tr>';
+    toast('시세 검색에 실패했습니다.', 'danger');
+  }
+};
+</script>
+{% endblock %}

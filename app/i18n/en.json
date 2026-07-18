@@ -1,0 +1,13 @@
+{
+  "login": "Login",
+  "search": "Search",
+  "maker": "Maker",
+  "model": "Model",
+  "grade": "Grade",
+  "year": "Year",
+  "hammer_avg": "Avg. Hammer Price",
+  "start_avg": "Avg. Start Price",
+  "mom": "MoM",
+  "accident_free": "Accident-free",
+  "report_fail": "Report temporarily unavailable"
+}

@@ -1,0 +1,4 @@
+# Optional heavy self-learning deps (RAG / QLoRA). Installed separately.
+# The app degrades gracefully (SKIP) when these are absent.
+sentence-transformers==3.1.1
+chromadb==0.5.5

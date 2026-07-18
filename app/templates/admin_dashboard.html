@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block page_title %}관리자{% endblock %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="glass-card h-100 p-3">
+      <h6 class="fw-bold">주간 엑셀 업로드</h6>
+      <div id="dropzone" class="dropzone text-center p-4 mb-2">엑셀(.xlsx)을 드래그하거나 클릭
+        <input type="file" id="file" accept=".xlsx,.xls" hidden></div>
+      <div class="mb-2"><input id="week" class="form-control form-control-sm" placeholder="주차 (예: 2026-W29, 비우면 자동)"></div>
+      <div class="mb-2">
+        <label class="me-3"><input type="radio" name="mode" value="append" checked> 추가</label>
+        <label class="me-3"><input type="radio" name="mode" value="overwrite"> 덮어쓰기</label>
+        <label><input type="radio" name="mode" value="reset"> 전체 초기화</label>
+      </div>
+      <button id="upBtn" class="btn btn-primary btn-sm">업로드 및 분석</button>
+      <div id="upOut" class="small mt-2"></div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="glass-card h-100 p-3">
+      <h6 class="fw-bold">시스템 제어</h6>
+      <button class="btn btn-outline-primary btn-sm" onclick="post('/admin/sync')">수동 동기화 (폴백)</button>
+      <button class="btn btn-outline-primary btn-sm" onclick="post('/admin/retrain')">AI 모델 재학습</button>
+      <button class="btn btn-outline-success btn-sm" onclick="runSummary()">시세 정성 요약 발행</button>
+      <div id="summaryOut" class="small mt-2 text-muted" style="white-space:pre-wrap"></div>
+    </div>
+  </div>
+</div>
+
+<div class="glass-card mt-3 p-3" id="llm-settings">
+    <h5 class="fw-bold mb-1">LLM API 키 입력</h5>
+    <p class="small text-muted mb-3">
+      아래에서 각 AI 제공자의 <strong>API 키를 직접 입력</strong>한 뒤 <strong>키 저장</strong>을 누르세요.
+      저장 후 <strong>연결테스트</strong> → <strong>활성화</strong> 순서로 사용합니다.
+    </p>
+    <div class="row g-3">
+      {% for l in llm_status %}
+      <div class="col-lg-4">
+        <div class="llm-panel p-3 h-100 {{ 'llm-active' if l.is_active else '' }}">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <div class="fw-bold">{{ l.label }}</div>
+              <div class="small text-muted">provider: {{ l.provider }}</div>
+            </div>
+            {% if l.is_active %}
+              <span class="badge bg-primary">사용중</span>
+            {% else %}
+              <span class="badge bg-secondary">대기</span>
+            {% endif %}
+          </div>
+
+          <div class="mb-2">
+            <span class="badge {{ 'bg-success' if l.key_configured else 'bg-warning text-dark' }}">
+              {{ '키 등록됨' if l.key_configured else '키 미등록' }}
+            </span>
+            {% if l.key_configured %}
+              <span class="small text-muted ms-1">{{ l.key_hint }} ({{ l.key_source }})</span>
+            {% endif %}
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label fw-semibold" for="model-{{ l.provider }}">모델명</label>
+            <input id="model-{{ l.provider }}" class="form-control" value="{{ l.model_name }}"
+                   placeholder="예: gemini-2.5-flash">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="key-{{ l.provider }}">API 키 입력</label>
+            <div class="input-group">
+              <input id="key-{{ l.provider }}" type="password" class="form-control"
+                     autocomplete="off"
+                     placeholder="{% if l.key_configured %}새 키를 입력하면 교체됩니다{% else %}여기에 API 키를 붙여넣으세요{% endif %}">
+              <button class="btn btn-outline-secondary" type="button"
+                      onclick="toggleKey('{{ l.provider }}')" title="키 보기/숨기기">보기</button>
+            </div>
+            <div class="form-text">키는 서버 DB에 저장되며 페이지에 다시 표시되지 않습니다.</div>
+          </div>
+
+          <div class="d-grid gap-2">
+            <button class="btn btn-primary" onclick="saveLLM('{{ l.provider }}')">키 저장</button>
+            <div class="btn-group">
+              <button class="btn btn-outline-success" onclick="testLLM('{{ l.provider }}')">연결테스트</button>
+              <button class="btn btn-outline-primary" onclick="activateLLM('{{ l.provider }}')">활성화</button>
+              <button class="btn btn-outline-danger" onclick="clearLLM('{{ l.provider }}')">키삭제</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="col-12"><div class="alert alert-warning">LLM 설정이 없습니다. 서버를 재시작해 주세요.</div></div>
+      {% endfor %}
+    </div>
+    <div class="mt-3 small">RAG 엔진:
+      <span class="badge bg-{{ 'success' if rag_available else 'secondary' }}">
+        {{ '사용가능' if rag_available else 'SKIP (미설치)' }}
+      </span>
+    </div>
+</div>
+
+<div class="glass-card mt-3 p-3">
+  <h6 class="fw-bold">업로드 히스토리</h6>
+  <table class="table table-sm"><thead><tr><th>일시</th><th>파일</th><th>주차</th><th>모드</th><th>상태</th><th>행수</th><th>작업자</th></tr></thead>
+  <tbody>{% for h in history %}<tr><td>{{ h.created_at.strftime('%m-%d %H:%M') }}</td><td>{{ h.filename }}</td>
+    <td>{{ h.week_no }}</td><td>{{ h.mode }}</td>
+    <td><span class="badge bg-{{ 'success' if h.status=='SUCCESS' else 'danger' }}">{{ h.status }}</span></td>
+    <td>{{ h.rows_ok }}</td><td>{{ h.operator }}</td></tr>{% endfor %}</tbody></table>
+</div>
+
+<div class="glass-card mt-3 p-3">
+  <h6 class="fw-bold">동기화 / LLM 로그</h6>
+  <table class="table table-sm"><thead><tr><th>일시</th><th>유형</th><th>상태</th><th>건수</th><th>메시지</th></tr></thead>
+  <tbody>{% for log in logs %}<tr>
+    <td>{{ log.created_at.strftime('%m-%d %H:%M') if log.created_at else '' }}</td>
+    <td>{{ log.sync_type }}</td>
+    <td><span class="badge bg-{{ 'success' if log.status=='SUCCESS' else 'danger' }}">{{ log.status }}</span></td>
+    <td>{{ log.records_processed }}</td>
+    <td class="small text-muted">{{ log.error_message or '' }}</td>
+  </tr>{% endfor %}</tbody></table>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const fileEl = document.getElementById('file'), dz = document.getElementById('dropzone');
+dz.onclick = () => fileEl.click();
+dz.ondragover = e => { e.preventDefault(); dz.classList.add('over'); };
+dz.ondragleave = () => dz.classList.remove('over');
+dz.ondrop = e => { e.preventDefault(); dz.classList.remove('over'); fileEl.files = e.dataTransfer.files; dz.textContent = fileEl.files[0].name; };
+fileEl.onchange = () => { if (fileEl.files[0]) dz.textContent = fileEl.files[0].name; };
+document.getElementById('upBtn').onclick = async () => {
+  if (!fileEl.files[0]) return toast('파일을 선택하세요', 'warning');
+  const fd = new FormData();
+  fd.append('file', fileEl.files[0]);
+  fd.append('mode', document.querySelector('input[name=mode]:checked').value);
+  fd.append('week_no', document.getElementById('week').value);
+  document.getElementById('upOut').textContent = '처리 중…';
+  const r = await fetch('/admin/upload', {method:'POST', body:fd});
+  const d = await r.json();
+  document.getElementById('upOut').textContent = JSON.stringify(d);
+  toast(d.ok ? `완료: ${d.rows_ok}행` : d.error, d.ok ? 'success' : 'danger');
+};
+async function post(url, body) {
+  const fd = new FormData(); if (body) for (const k in body) fd.append(k, body[k]);
+  const r = await fetch(url, {method:'POST', body:fd});
+  let d;
+  try { d = await r.json(); } catch (e) {
+    toast('서버 응답 오류', 'danger');
+    return {ok:false, error:'invalid json'};
+  }
+  const fail = d.ok === false || d.status === 'FAIL';
+  toast(fail ? (d.error || d.detail || JSON.stringify(d)) : (d.message || '완료'),
+        fail ? 'danger' : 'success');
+  return d;
+}
+function toggleKey(provider) {
+  const el = document.getElementById('key-' + provider);
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+async function activateLLM(provider) {
+  const d = await post('/admin/llm', {provider});
+  if (d.ok) setTimeout(() => location.reload(), 500);
+}
+async function saveLLM(provider) {
+  const keyEl = document.getElementById('key-' + provider);
+  const modelEl = document.getElementById('model-' + provider);
+  const key = (keyEl.value || '').trim();
+  const model_name = (modelEl.value || '').trim();
+  if (!key) {
+    return toast('API 키를 입력한 뒤 저장하세요.', 'warning');
+  }
+  const d = await post('/admin/llm/settings', {provider, api_key: key, model_name});
+  if (d.ok) {
+    toast(provider + ' API 키가 저장되었습니다.', 'success');
+    keyEl.value = '';
+    setTimeout(() => location.reload(), 700);
+  }
+}
+async function clearLLM(provider) {
+  if (!confirm(provider + ' API 키를 삭제할까요?')) return;
+  const d = await post('/admin/llm/settings', {provider, clear_key:'1'});
+  if (d.ok) setTimeout(() => location.reload(), 500);
+}
+async function testLLM(provider) {
+  toast(provider + ' 연결 테스트 중…', 'secondary');
+  const d = await post('/admin/llm/test', {provider});
+  if (d.ok) toast(provider + ' 연결 성공 (' + (d.model || '') + ')', 'success');
+}
+async function runSummary() {
+  document.getElementById('summaryOut').textContent = '요약 생성 중…';
+  toast('시세 정성 요약 생성 중…', 'secondary');
+  const r = await fetch('/admin/llm/summary', {method:'POST'});
+  const d = await r.json();
+  if (d.ok) {
+    document.getElementById('summaryOut').textContent = '[' + d.provider + ']\n' + d.text;
+    toast('요약 완료', 'success');
+  } else {
+    document.getElementById('summaryOut').textContent = d.error + (d.detail ? '\n' + d.detail : '');
+    toast(d.error || '임시 리포트 생성 불가능', 'danger');
+  }
+}
+</script>
+{% endblock %}

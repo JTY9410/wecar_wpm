@@ -1,0 +1,83 @@
+<!-- [UI Flow: GET /admin/users — 승인/철회 · 목록] -->
+{% extends "base.html" %}
+{% block title %}회원 관리 - {{ config.APP_NAME }}{% endblock %}
+{% block page_title %}회원 관리{% endblock %}
+{% block content %}
+<div class="glass-card p-4 mb-3">
+  <h1 class="h4 mb-1">회원가입 관리</h1>
+  <p class="text-muted small mb-0">가입 승인 후 로그인할 수 있습니다. 관리자 계정은 승인 상태가 자동 유지됩니다.</p>
+</div>
+<div class="glass-card p-0 overflow-hidden">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0" id="userTable">
+      <thead>
+        <tr>
+          <th>아이디</th>
+          <th>이름</th>
+          <th>전화</th>
+          <th>소속</th>
+          <th>권한</th>
+          <th>승인</th>
+          <th>가입일</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr data-id="{{ u.id }}">
+          <td class="fw-semibold">{{ u.username }}</td>
+          <td>{{ u.name or '-' }}</td>
+          <td>{{ u.phone or '-' }}</td>
+          <td>{{ u.affiliation or '-' }}</td>
+          <td><span class="badge text-bg-{{ 'danger' if u.is_admin else 'secondary' }}">{{ u.role }}</span></td>
+          <td>
+            <span class="badge text-bg-{{ 'success' if u.is_approved else 'warning' }} approve-label">
+              {{ '승인' if u.is_approved else '미승인' }}
+            </span>
+          </td>
+          <td class="small text-muted">{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '-' }}</td>
+          <td class="text-end">
+            {% if not u.is_admin %}
+            {% if u.is_approved %}
+            <button type="button" class="btn btn-sm btn-outline-warning revoke-btn">승인 취소</button>
+            {% else %}
+            <button type="button" class="btn btn-sm btn-primary approve-btn">승인</button>
+            {% endif %}
+            {% else %}
+            <span class="text-muted small">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="text-center text-muted py-5">등록된 회원이 없습니다.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('userTable').addEventListener('click', async (e) => {
+  const row = e.target.closest('tr[data-id]');
+  if (!row) return;
+  const id = row.dataset.id;
+  let url = null;
+  if (e.target.classList.contains('approve-btn')) url = `/admin/users/${id}/approve`;
+  if (e.target.classList.contains('revoke-btn')) url = `/admin/users/${id}/revoke`;
+  if (!url) return;
+  try {
+    const r = await fetch(url, { method: 'POST' });
+    const data = await r.json();
+    if (data.ok) {
+      toast(data.is_approved ? '승인되었습니다.' : '승인이 취소되었습니다.', 'success');
+      location.reload();
+    } else {
+      toast(data.error || '처리 실패', 'danger');
+    }
+  } catch (err) {
+    toast('네트워크 오류', 'danger');
+  }
+});
+</script>
+{% endblock %}

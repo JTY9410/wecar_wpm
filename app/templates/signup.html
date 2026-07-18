@@ -1,0 +1,41 @@
+<!-- [UI Flow: GET/POST /signup | auth.signup — 가입 신청(미승인 USER) → 로그인] -->
+{% extends "base.html" %}
+{% block title %}회원가입 - {{ config.APP_NAME }}{% endblock %}
+{% block body_class %}auth-shell{% endblock %}
+{% block content %}
+<div class="login-page">
+  <div class="login-card glass-card">
+    <div class="text-center mb-4">
+      <span class="brand-mark brand-mark-lg">{{ config.get('BRAND_MARK', 'WPM') }}</span>
+      <h1 class="h4 mt-3 mb-1 page-title">회원가입</h1>
+      <p class="page-subtitle mb-0">가입 후 관리자 승인이 필요합니다.</p>
+    </div>
+    <form method="POST" action="{{ url_for('auth.signup') }}">
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">아이디 <span class="text-danger">*</span></label>
+        <input type="text" name="username" class="form-control" value="{{ form.username or '' }}" required autofocus autocomplete="username">
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">비밀번호 <span class="text-danger">*</span></label>
+        <input type="password" name="password" class="form-control" required autocomplete="new-password">
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">이름</label>
+        <input type="text" name="name" class="form-control" value="{{ form.name or '' }}" autocomplete="name">
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">전화번호</label>
+        <input type="text" name="phone" class="form-control" value="{{ form.phone or '' }}" placeholder="010-0000-0000" autocomplete="tel">
+      </div>
+      <div class="mb-4">
+        <label class="form-label small fw-semibold">소속</label>
+        <input type="text" name="affiliation" class="form-control" value="{{ form.affiliation or '' }}">
+      </div>
+      <button type="submit" class="btn btn-primary w-100 btn-lg">가입 신청</button>
+    </form>
+    <p class="text-center small mt-4 mb-0">
+      <a href="{{ url_for('auth.login') }}" class="fw-semibold">← 로그인으로 돌아가기</a>
+    </p>
+  </div>
+</div>
+{% endblock %}
