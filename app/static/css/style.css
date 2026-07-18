@@ -373,7 +373,7 @@ body {
 
 .base-price-matrix {
     overflow: auto;
-    max-height: min(60vh, 36rem);
+    max-height: min(70vh, 42rem);
     font-size: .82rem;
     -webkit-overflow-scrolling: touch;
     border: 1px solid var(--wc-border);
@@ -391,9 +391,9 @@ body {
 .base-price-matrix td {
     text-align: center;
     white-space: nowrap;
-    padding: .55rem .75rem;
+    padding: .65rem .9rem;
     border: 1px solid var(--wc-border);
-    min-width: 5.5rem;
+    min-width: 7.5rem;
 }
 
 .base-price-matrix thead th {
@@ -1738,4 +1738,104 @@ body.app-body {
         animation-duration: .01ms !important;
         transition-duration: .01ms !important;
     }
+}
+
+/* —— Market wholesale grid: wide columns + dual scroll + sticky header —— */
+.market-scroll-panel {
+    overflow: auto !important;
+    max-height: min(72vh, 44rem);
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+}
+
+.market-grid-card {
+    border: 1px solid var(--wc-border);
+}
+
+.market-grid-table {
+    width: max-content;
+    min-width: 1400px;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-bottom: 0;
+}
+
+.market-grid-table th,
+.market-grid-table td {
+    white-space: nowrap;
+    vertical-align: middle;
+    padding: .7rem .9rem;
+}
+
+.market-grid-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: #F8FAFC;
+    box-shadow: 0 1px 0 var(--wc-border);
+    font-size: .75rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+}
+
+[data-theme="dark"] .market-grid-table thead th {
+    background: #1C2230;
+}
+
+.market-grid-table .col-maker { min-width: 7rem; }
+.market-grid-table .col-model { min-width: 8rem; }
+.market-grid-table .col-mdetail { min-width: 11rem; }
+.market-grid-table .col-grade { min-width: 7rem; }
+.market-grid-table .col-gdetail { min-width: 14rem; }
+.market-grid-table .col-fuel { min-width: 6.5rem; }
+.market-grid-table .col-awd { min-width: 5rem; }
+.market-grid-table .col-accident { min-width: 6.5rem; }
+.market-grid-table .col-year { min-width: 5rem; }
+.market-grid-table .col-km { min-width: 9rem; }
+.market-grid-table .col-price { min-width: 7.5rem; text-align: right; }
+.market-grid-table .col-mom { min-width: 6rem; }
+.market-grid-table .col-count { min-width: 5rem; }
+.market-grid-table .col-actions { min-width: 11rem; }
+
+.base-price-matrix.market-scroll-panel {
+    max-height: min(72vh, 44rem);
+}
+
+.base-price-matrix .year-col {
+    min-width: 5.5rem;
+}
+
+.market-samples-table {
+    width: max-content;
+    min-width: 960px;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.market-samples-table th,
+.market-samples-table td {
+    white-space: nowrap;
+    min-width: 6rem;
+    padding: .65rem .85rem;
+}
+
+.market-samples-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    background: #F8FAFC;
+    box-shadow: 0 1px 0 var(--wc-border);
+}
+
+[data-theme="dark"] .market-samples-table thead th {
+    background: #1C2230;
+}
+
+.market-samples-table th:first-child,
+.market-samples-table td:first-child {
+    min-width: 14rem;
+}
+
+.bp-samples-modal .market-scroll-panel {
+    max-height: min(60vh, 36rem);
 }
