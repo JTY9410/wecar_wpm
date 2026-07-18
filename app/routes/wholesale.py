@@ -50,7 +50,10 @@ def prices():
     awd = request.args.get("awd")
     km_bin = request.args.get("km_bin")
 
-    q = MarketSummary.query
+    q = MarketSummary.query.filter(
+        MarketSummary.hammer_avg.isnot(None),
+        MarketSummary.hammer_avg > 0,
+    )
     if car_code:
         q = q.filter(MarketSummary.car_code == car_code)
     if maker:

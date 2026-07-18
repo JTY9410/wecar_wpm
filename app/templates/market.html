@@ -1,66 +1,59 @@
 {% extends "base.html" %}
 {% block page_title %}{{ i18n.market_title }}{% endblock %}
 {% block content %}
-<!-- [UI Flow: 캐스케이드 필터 → 그리드/매트릭스/세부내역 모달 · i18n] -->
+<!-- [UI Flow: 캐스케이드 → 낙찰가 시세 그리드/매트릭스 → 모수 세부내역 모달] -->
 <script>window.I18N = {{ i18n|tojson }}; window.LANG = {{ lang|tojson }};</script>
 
 <div class="glass-card p-3 mb-3">
+  <p class="small text-muted mb-2 mb-md-3">{{ i18n.hammer_avg }} · {{ i18n.unit_man }}</p>
   <div class="row g-2 align-items-end">
     <div class="col-6 col-md">
-      <label class="form-label small mb-1" data-i18n="maker">{{ i18n.maker }}</label>
-      <select id="f-maker" class="form-select">
-        <option value="">—</option>
-        {% for m in makers %}<option>{{ m }}</option>{% endfor %}
-      </select>
+      <label class="form-label small mb-1">{{ i18n.maker }}</label>
+      <select id="f-maker" class="form-select"><option value="">—</option>
+        {% for m in makers %}<option>{{ m }}</option>{% endfor %}</select>
     </div>
     <div class="col-6 col-md">
-      <label class="form-label small mb-1" data-i18n="model">{{ i18n.model }}</label>
+      <label class="form-label small mb-1">{{ i18n.model }}</label>
       <select id="f-model" class="form-select" disabled><option value="">—</option></select>
     </div>
     <div class="col-6 col-md">
-      <label class="form-label small mb-1" data-i18n="mdetail">{{ i18n.mdetail }}</label>
+      <label class="form-label small mb-1">{{ i18n.mdetail }}</label>
       <select id="f-mdetail" class="form-select" disabled><option value="">—</option></select>
     </div>
     <div class="col-6 col-md">
-      <label class="form-label small mb-1" data-i18n="grade">{{ i18n.grade }}</label>
+      <label class="form-label small mb-1">{{ i18n.grade }}</label>
       <select id="f-grade" class="form-select" disabled><option value="">—</option></select>
     </div>
     <div class="col-6 col-md">
-      <label class="form-label small mb-1" data-i18n="gdetail">{{ i18n.gdetail }}</label>
+      <label class="form-label small mb-1">{{ i18n.gdetail }}</label>
       <select id="f-gdetail" class="form-select" disabled><option value="">—</option></select>
     </div>
     <div class="col-6 col-md">
-      <label class="form-label small mb-1" data-i18n="year">{{ i18n.year }}</label>
+      <label class="form-label small mb-1">{{ i18n.year }}</label>
       <select id="f-year" class="form-select" disabled><option value="">—</option></select>
     </div>
     <div class="col-6 col-md">
-      <label class="form-label small mb-1" data-i18n="fuel">{{ i18n.fuel }}</label>
+      <label class="form-label small mb-1">{{ i18n.fuel }}</label>
       <select id="f-fuel" class="form-select" disabled><option value="">—</option></select>
     </div>
     <div class="col-6 col-md">
-      <label class="form-label small mb-1" data-i18n="awd">{{ i18n.awd }}</label>
+      <label class="form-label small mb-1">{{ i18n.awd }}</label>
       <select id="f-awd" class="form-select">
-        <option value="">—</option>
-        <option>AWD</option>
-        <option>2WD</option>
-        <option>미확인</option>
+        <option value="">—</option><option>AWD</option><option>2WD</option><option>미확인</option>
       </select>
     </div>
     <div class="col-auto d-flex gap-2">
-      <button id="f-search" class="btn btn-primary px-3" data-i18n="search">{{ i18n.search }}</button>
-      <button id="f-matrix" class="btn btn-outline-primary px-3" data-i18n="matrix">{{ i18n.matrix }}</button>
+      <button id="f-search" class="btn btn-primary px-3">{{ i18n.search }}</button>
+      <button id="f-matrix" class="btn btn-outline-primary px-3">{{ i18n.matrix }}</button>
     </div>
   </div>
 </div>
 
 <div id="matrixPanel" class="glass-card p-3 mb-3 d-none">
-  <h5 class="mb-1" id="matrixTitle" data-i18n="matrix_title">{{ i18n.matrix_title }}</h5>
+  <h5 class="mb-1">{{ i18n.matrix_title }} <span class="badge text-bg-secondary">{{ i18n.hammer_avg }}</span></h5>
   <p class="small text-muted mb-3" id="matrixSub"></p>
   <div class="base-price-matrix market-scroll-panel scroll-hint">
-    <table class="table table-sm mb-0">
-      <thead id="matrixHead"></thead>
-      <tbody id="matrixBody"></tbody>
-    </table>
+    <table class="table table-sm mb-0"><thead id="matrixHead"></thead><tbody id="matrixBody"></tbody></table>
   </div>
 </div>
 
@@ -69,59 +62,64 @@
     <table class="table align-middle mb-0 market-grid-table">
       <thead>
         <tr>
-          <th class="col-maker" data-i18n="maker">{{ i18n.maker }}</th>
-          <th class="col-model" data-i18n="model">{{ i18n.model }}</th>
-          <th class="col-mdetail" data-i18n="mdetail">{{ i18n.mdetail }}</th>
-          <th class="col-grade" data-i18n="grade">{{ i18n.grade }}</th>
-          <th class="col-gdetail" data-i18n="gdetail">{{ i18n.gdetail }}</th>
-          <th class="col-fuel" data-i18n="fuel">{{ i18n.fuel }}</th>
-          <th class="col-awd" data-i18n="awd">{{ i18n.awd }}</th>
-          <th class="col-accident" data-i18n="accident">{{ i18n.accident }}</th>
-          <th class="col-year" data-i18n="year">{{ i18n.year }}</th>
-          <th class="col-km" data-i18n="km_bin">{{ i18n.km_bin }}</th>
-          <th class="col-price" data-i18n="start_avg">{{ i18n.start_avg }}</th>
-          <th class="col-price" data-i18n="hammer_avg">{{ i18n.hammer_avg }}</th>
-          <th class="col-mom" data-i18n="mom">{{ i18n.mom }}</th>
-          <th class="col-count" data-i18n="sample_count">{{ i18n.sample_count }}</th>
+          <th class="col-maker">{{ i18n.maker }}</th>
+          <th class="col-model">{{ i18n.model }}</th>
+          <th class="col-mdetail">{{ i18n.mdetail }}</th>
+          <th class="col-grade">{{ i18n.grade }}</th>
+          <th class="col-gdetail">{{ i18n.gdetail }}</th>
+          <th class="col-fuel">{{ i18n.fuel }}</th>
+          <th class="col-awd">{{ i18n.awd }}</th>
+          <th class="col-accident">{{ i18n.accident }}</th>
+          <th class="col-year">{{ i18n.year }}</th>
+          <th class="col-km">{{ i18n.km_bin }}</th>
+          <th class="col-price">{{ i18n.hammer_avg }}</th>
+          <th class="col-mom">{{ i18n.mom }}</th>
+          <th class="col-count">{{ i18n.sample_count }}</th>
           <th class="col-actions"></th>
         </tr>
       </thead>
       <tbody id="grid">
-        <tr><td colspan="15" class="text-center text-muted py-5" data-i18n="select_maker">{{ i18n.select_maker }}</td></tr>
+        <tr><td colspan="14" class="text-center text-muted py-5">{{ i18n.select_maker }}</td></tr>
       </tbody>
     </table>
   </div>
 </div>
+{% endblock %}
 
-<div class="modal fade" id="bpSamplesModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-md-down bp-samples-modal">
+{% block scripts %}
+{# 모달은 content 밖(scripts)에서 렌더해 overflow clipping 방지 #}
+<div class="modal fade" id="bpSamplesModal" tabindex="-1" aria-labelledby="bpSamplesModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
-      <div class="modal-header">
-        <div class="min-w-0">
+      <div class="modal-header border-bottom">
+        <div class="min-w-0 flex-grow-1 pe-2">
           <p class="section-kicker mb-1">SAMPLES</p>
-          <h5 class="modal-title mb-0" id="bpSamplesModalLabel" data-i18n="samples_title">{{ i18n.samples_title }}</h5>
+          <h5 class="modal-title mb-0" id="bpSamplesModalLabel">{{ i18n.samples_title }}</h5>
           <p class="small text-muted mb-0 text-truncate" id="bpSamplesSubtitle"></p>
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ i18n.close }}"></button>
       </div>
       <div class="modal-body p-0">
-        <div id="bpSamplesLoading" class="p-4 text-center text-muted d-none" data-i18n="samples_loading">{{ i18n.samples_loading }}</div>
-        <div id="bpSamplesEmpty" class="p-4 text-center text-muted d-none" data-i18n="samples_empty">{{ i18n.samples_empty }}</div>
+        <div id="bpSamplesLoading" class="p-5 text-center text-muted d-none">{{ i18n.samples_loading }}</div>
+        <div id="bpSamplesEmpty" class="p-5 text-center text-muted d-none">{{ i18n.samples_empty }}</div>
         <div id="bpSamplesContent" class="d-none">
-          <p class="small text-muted px-3 pt-3 mb-2" id="bpSamplesCount"></p>
-          <div class="table-responsive data-scroll market-scroll-panel scroll-hint px-3 pb-3">
-            <table class="table table-sm table-hover align-middle mb-0 bp-samples-table market-samples-table">
+          <div class="d-flex justify-content-between align-items-center px-3 pt-3">
+            <p class="small text-muted mb-0" id="bpSamplesCount"></p>
+            <span class="badge text-bg-light">{{ i18n.hammer_price }}</span>
+          </div>
+          <div class="table-responsive market-scroll-panel px-3 pb-3 mt-2" style="max-height:min(55vh,32rem)">
+            <table class="table table-sm table-hover align-middle mb-0 market-samples-table">
               <thead>
                 <tr>
-                  <th data-i18n="car_name">{{ i18n.car_name }}</th>
-                  <th data-i18n="year">{{ i18n.year }}</th>
-                  <th data-i18n="fuel">{{ i18n.fuel }}</th>
-                  <th data-i18n="awd">{{ i18n.awd }}</th>
-                  <th data-i18n="km_bin">{{ i18n.km_bin }}</th>
-                  <th class="text-end" data-i18n="start_price">{{ i18n.start_price }}</th>
-                  <th class="text-end" data-i18n="hammer_price">{{ i18n.hammer_price }}</th>
-                  <th data-i18n="accident">{{ i18n.accident }}</th>
-                  <th data-i18n="imported">{{ i18n.imported }}</th>
+                  <th>{{ i18n.car_name }}</th>
+                  <th>{{ i18n.year }}</th>
+                  <th>{{ i18n.fuel }}</th>
+                  <th>{{ i18n.awd }}</th>
+                  <th>{{ i18n.km_bin }}</th>
+                  <th class="text-end">{{ i18n.hammer_price }}</th>
+                  <th>{{ i18n.accident }}</th>
+                  <th>{{ i18n.imported }}</th>
+                  <th>{{ i18n.auction_date }}</th>
                 </tr>
               </thead>
               <tbody id="bpSamplesTableBody"></tbody>
@@ -132,7 +130,5 @@
     </div>
   </div>
 </div>
-{% endblock %}
-{% block scripts %}
-<script src="{{ url_for('static', filename='js/market.js') }}?v=2"></script>
+<script src="{{ url_for('static', filename='js/market.js') }}?v=3"></script>
 {% endblock %}

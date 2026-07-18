@@ -119,7 +119,10 @@ def grid(maker=None, model_name=None, mdetail_name=None, car_name=None,
         mdetail_name=mdetail_name or car_name, grade_name=grade_name,
         gdetail_name=gdetail_name, car_year=car_year, fuel=fuel, awd=awd,
     )
-    rows = q.order_by(MarketSummary.car_year.desc(), MarketSummary.km_bin).limit(500).all()
+    rows = q.filter(
+        MarketSummary.hammer_avg.isnot(None),
+        MarketSummary.hammer_avg > 0,
+    ).order_by(MarketSummary.car_year.desc(), MarketSummary.km_bin).limit(500).all()
     return [{
         "car_code": _clean(r.car_code), "maker": _clean(r.maker),
         "model_name": _clean(r.model_name), "mdetail_name": _clean(r.mdetail_name),
@@ -136,53 +139,74 @@ def grid(maker=None, model_name=None, mdetail_name=None, car_name=None,
 
 def matrix(maker=None, model_name=None, mdetail_name=None, grade_name=None,
            gdetail_name=None, fuel=None, awd=None, accident_free=None):
-    """연식 × 주행구간 매트릭스 (낙찰가 평균, car 기준가격과 동일 UX)."""
+    """연식 × 주행구간 매트릭스 — 낙찰가(hammer_price) 평균."""
     if not maker:
-        return {"years": [], "buckets": [], "matrix": {}, "counts": {}, "total_samples": 0}
+        return {"years": [], "buckets": [], "matrix": {}, "counts": {}, "total_samples": 0,
+                "price_basis": "hammer"}
 
-    q = _filter_summary(
-        MarketSummary.query, maker=maker, model_name=model_name,
-        mdetail_name=mdetail_name, grade_name=grade_name, gdetail_name=gdetail_name,
-        fuel=fuel, awd=awd,
-        is_accident_free=(True if accident_free == "1" else
-                          False if accident_free == "0" else None),
+    q = AuctionRecord.query.filter(
+        AuctionRecord.hammer_price.isnot(None),
+        AuctionRecord.hammer_price > 0,
+        AuctionRecord.maker == maker,
     )
+    if model_name:
+        q = q.filter(AuctionRecord.model_name == model_name)
+    if mdetail_name:
+        q = q.filter(AuctionRecord.mdetail_name == mdetail_name)
+    if grade_name:
+        q = q.filter(AuctionRecord.grade_name == grade_name)
+    if gdetail_name:
+        q = q.filter(AuctionRecord.gdetail_name == gdetail_name)
+    if fuel:
+        q = q.filter(AuctionRecord.fuel == fuel)
+    if awd:
+        q = q.filter(AuctionRecord.awd == awd)
+    if accident_free == "1":
+        q = q.filter(AuctionRecord.is_accident_free.is_(True))
+    elif accident_free == "0":
+        q = q.filter(AuctionRecord.is_accident_free.is_(False))
+
     rows = q.all()
     if not rows:
-        return {"years": [], "buckets": [], "matrix": {}, "counts": {}, "total_samples": 0}
+        return {"years": [], "buckets": [], "matrix": {}, "counts": {}, "total_samples": 0,
+                "price_basis": "hammer"}
 
     prices = defaultdict(lambda: defaultdict(list))
-    counts = defaultdict(lambda: defaultdict(int))
     buckets_set = set()
     years_set = set()
-    total = 0
     for r in rows:
         if r.car_year is None or not r.km_bin:
             continue
         years_set.add(r.car_year)
         buckets_set.add(r.km_bin)
-        if r.hammer_avg is not None:
-            prices[r.car_year][r.km_bin].append(r.hammer_avg)
-        counts[r.car_year][r.km_bin] += r.sample_count or 0
-        total += r.sample_count or 0
+        prices[r.car_year][r.km_bin].append(r.hammer_price)
 
     def _bin_sort_key(label):
-        # "0만~1.5만km" / "20만km 이상"
         m = re.search(r"([\d.]+)", str(label) or "")
         return float(m.group(1)) if m else 0
 
     years = sorted(years_set, reverse=True)
     buckets = sorted(buckets_set, key=_bin_sort_key)
-    mat = {y: {b: (round(sum(prices[y][b]) / len(prices[y][b]), 1)
-                   if prices[y][b] else None)
-               for b in buckets} for y in years}
-    cnt = {y: {b: counts[y][b] for b in buckets} for y in years}
+    mat = {}
+    cnt = {}
+    total = 0
+    for y in years:
+        mat[y] = {}
+        cnt[y] = {}
+        for b in buckets:
+            vals = prices[y][b]
+            n = len(vals)
+            cnt[y][b] = n
+            total += n
+            mat[y][b] = round(sum(vals) / n, 1) if n else None
+
     return {
         "years": years,
         "buckets": buckets,
         "matrix": mat,
         "counts": cnt,
         "total_samples": total,
+        "price_basis": "hammer",
         "maker": maker,
         "model_name": model_name,
         "mdetail_name": mdetail_name,
@@ -195,9 +219,12 @@ def matrix(maker=None, model_name=None, mdetail_name=None, grade_name=None,
 
 def samples(maker=None, model_name=None, mdetail_name=None, grade_name=None,
             gdetail_name=None, car_year=None, km_bin=None, fuel=None, awd=None,
-            accident_free=None, lang="ko", limit=100):
-    """세부내역 — 해당 셀/행에 속한 낙찰 원장."""
-    q = AuctionRecord.query
+            accident_free=None, lang="ko", limit=200):
+    """세부내역 — 낙찰가 > 0 인 경매 원장만."""
+    q = AuctionRecord.query.filter(
+        AuctionRecord.hammer_price.isnot(None),
+        AuctionRecord.hammer_price > 0,
+    )
     if maker:
         q = q.filter(AuctionRecord.maker == maker)
     if model_name:
@@ -250,7 +277,7 @@ def samples(maker=None, model_name=None, mdetail_name=None, grade_name=None,
             "auction_date": _clean(r.auction_date),
             "week_no": _clean(r.week_no),
         })
-    return {"ok": True, "count": len(items), "items": items}
+    return {"ok": True, "count": len(items), "items": items, "price_basis": "hammer"}
 
 
 # backward-compat aliases used by market routes

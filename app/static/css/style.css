@@ -73,7 +73,7 @@ body {
 .inapp-overlay {
     position: fixed;
     inset: 0;
-    z-index: 2000;
+    z-index: 1040;
     background: rgba(15, 19, 26, .55);
     backdrop-filter: blur(8px);
     display: flex;

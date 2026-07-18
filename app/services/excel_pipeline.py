@@ -76,6 +76,18 @@ def _to_int(val):
         return None
 
 
+def _clean_str(val):
+    """pandas NaN / 'nan' / 공백 → None."""
+    if val is None:
+        return None
+    if isinstance(val, float) and pd.isna(val):
+        return None
+    s = str(val).strip()
+    if not s or s.lower() in ("nan", "none", "null", "-"):
+        return None
+    return s
+
+
 def _clean_km(val):
     i = _to_int(val)
     return i if i is not None else 0
@@ -93,65 +105,63 @@ def parse_records(df, references, week_no):
     records = []
     for _, row in df.iterrows():
         hammer = _to_int(row.get(cols["hammer_price"]))
-        if hammer is None:
+        # 시세는 낙찰가 기준 — 미낙찰(0/빈값) 제외
+        if hammer is None or hammer <= 0:
             continue
-        maker = row.get(cols["maker"])
-        kind = row.get(cols["kind"]) if cols.get("kind") else None
-        model_name = row.get(cols["model_name"]) if cols.get("model_name") else kind
-        car_name = row.get(cols["car_name"])
+        maker = _clean_str(row.get(cols["maker"]))
+        kind = _clean_str(row.get(cols["kind"])) if cols.get("kind") else None
+        model_name = _clean_str(row.get(cols["model_name"])) if cols.get("model_name") else kind
+        car_name = _clean_str(row.get(cols["car_name"]))
         fuel = normalize_fuel(row.get(cols["fuel"]) if cols.get("fuel") else None)
-        imported = row.get(cols["imported"])
+        imported = _clean_str(row.get(cols["imported"]))
         car_year = _to_int(row.get(cols["car_year"]))
         km = _clean_km(row.get(cols["car_km"]))
-        option = row.get(cols["car_option"]) if cols.get("car_option") else None
-        awd = normalize_awd(str(car_name) if car_name is not None else None,
-                            str(option) if option is not None else None, None)
-        acc_detail = row.get(cols.get("accident_detail")) if cols.get("accident_detail") else None
+        option = _clean_str(row.get(cols["car_option"])) if cols.get("car_option") else None
+        awd = normalize_awd(car_name, option, None)
+        acc_detail = _clean_str(row.get(cols.get("accident_detail"))) if cols.get("accident_detail") else None
         xx = row.get(xx_col) if xx_col else None
         w = row.get(w_col) if w_col else None
+        if isinstance(xx, float) and pd.isna(xx):
+            xx = None
+        if isinstance(w, float) and pd.isna(w):
+            w = None
         acc_free = is_accident_free(acc_detail, xx, w)
 
         # 계층 컬럼 분리 저장: 제조사·모델(차종)·세부모델(모델명)·등급·세부등급
-        model = str(kind) if kind is not None and str(kind).strip() not in ("", "nan") else (
-            str(model_name) if model_name is not None else None)
-        mdetail = str(model_name) if model_name is not None and str(model_name).strip() not in ("", "nan") else model
+        model = kind or model_name
+        mdetail = model_name or model
         grade, gdetail = extract_grade_gdetail(
-            maker=str(maker) if maker is not None else None,
-            model=model, mdetail=mdetail,
-            car_name=str(car_name) if car_name is not None else None,
+            maker=maker, model=model, mdetail=mdetail, car_name=car_name,
         )
         hier = ensure_hierarchy(
-            maker=str(maker) if maker is not None else None,
-            model=model, mdetail=mdetail, grade=grade, gdetail=gdetail,
+            maker=maker, model=model, mdetail=mdetail, grade=grade, gdetail=gdetail,
         )
         code = build_car_code(
             maker=hier["maker"], model=hier["model"], mdetail=hier["mdetail"],
             grade=hier["grade"], gdetail=hier["gdetail"],
             car_year=car_year, fuel=fuel, awd=awd,
-            car_name=str(car_name) if car_name is not None else None,
-            car_option=str(option) if option is not None else None,
-            accident_free=acc_free,
+            car_name=car_name, car_option=option, accident_free=acc_free,
         )
         rec = AuctionRecord(
             week_no=week_no,
-            auction_date=str(row.get(cols["auction_date"])),
+            auction_date=_clean_str(row.get(cols["auction_date"])),
             maker=hier["maker"],
             model_name=hier["model"],
             mdetail_name=hier["mdetail"],
             grade_name=hier["grade"],
             gdetail_name=hier["gdetail"],
-            car_name=str(car_name) if car_name is not None else None,
+            car_name=car_name,
             car_year=car_year,
             car_km=km,
             fuel=fuel,
             awd=awd,
-            imported=str(imported) if imported is not None else None,
+            imported=imported,
             start_price=_to_int(row.get(cols["start_price"])) if cols.get("start_price") else None,
             hope_price=_to_int(row.get(cols["hope_price"])) if cols.get("hope_price") else None,
             hammer_price=hammer,
-            accident_detail=str(acc_detail) if acc_detail is not None else None,
-            xx_exchange=str(xx) if xx is not None else None,
-            w_panel=str(w) if w is not None else None,
+            accident_detail=acc_detail,
+            xx_exchange=_clean_str(xx) if xx is not None else None,
+            w_panel=_clean_str(w) if w is not None else None,
             is_accident_free=acc_free,
             maker_no=hier["maker_no"],
             model_no=hier["model_no"],
@@ -198,12 +208,12 @@ def load_price_table(xls):
 
 
 def rebuild_market_summary(week_no):
-    """Aggregate all AuctionRecord into MarketSummary; MoM vs previous week.
-
-    집계 키는 카코드 문자열이 아니라 계층·유종·AWD·사고여부 컬럼이다.
-    """
+    """Aggregate AuctionRecord into MarketSummary — 낙찰가(hammer) 기준."""
     MarketSummary.query.delete()
-    records = AuctionRecord.query.all()
+    records = AuctionRecord.query.filter(
+        AuctionRecord.hammer_price.isnot(None),
+        AuctionRecord.hammer_price > 0,
+    ).all()
     if not records:
         db.session.commit()
         return 0
