@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, url_for
+from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 
 from config import Config
 from app.extensions import db, login_manager, migrate
@@ -17,10 +17,29 @@ def create_app(config_class=Config):
     login_manager.init_app(app)
 
     from app import models  # noqa: F401  (register models)
+    from app.services.i18n_translate import load_pack
 
     @login_manager.user_loader
     def load_user(user_id):
         return db.session.get(models.User, int(user_id))
+
+    @app.before_request
+    def _capture_lang():
+        lang = request.args.get("lang")
+        if lang in app.config.get("SUPPORTED_LANGS", ["ko", "en", "ja"]):
+            session["lang"] = lang
+
+    @app.context_processor
+    def inject_i18n():
+        lang = session.get("lang", "ko")
+        if lang not in app.config.get("SUPPORTED_LANGS", ["ko", "en", "ja"]):
+            lang = "ko"
+        pack = load_pack(lang)
+
+        def t(key, default=None):
+            return pack.get(key, default if default is not None else key)
+
+        return {"i18n": pack, "lang": lang, "t": t, "supported_langs": app.config.get("SUPPORTED_LANGS")}
 
     from app.routes.auth import auth_bp
     from app.routes.market import market_bp
@@ -37,6 +56,13 @@ def create_app(config_class=Config):
     app.register_blueprint(api_bp)
     app.register_blueprint(codes_bp)
     app.register_blueprint(wholesale_bp)
+
+    @app.route("/set-lang/<lang>")
+    def set_lang(lang):
+        if lang in app.config.get("SUPPORTED_LANGS", ["ko", "en", "ja"]):
+            session["lang"] = lang
+        nxt = request.args.get("next") or request.referrer or url_for("market.index")
+        return redirect(nxt)
 
     @app.route("/health")
     def health():

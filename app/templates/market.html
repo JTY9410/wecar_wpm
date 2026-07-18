@@ -1,145 +1,138 @@
 {% extends "base.html" %}
-{% block page_title %}도매 시세 분석{% endblock %}
+{% block page_title %}{{ i18n.market_title }}{% endblock %}
 {% block content %}
-<!-- [UI Flow: 제조사→모델→상세모델→연식→유종→AWD 캐스케이드 · 계층 컬럼 시세 그리드] -->
+<!-- [UI Flow: 캐스케이드 필터 → 그리드/매트릭스/세부내역 모달 · i18n] -->
+<script>window.I18N = {{ i18n|tojson }}; window.LANG = {{ lang|tojson }};</script>
+
 <div class="glass-card p-3 mb-3">
   <div class="row g-2 align-items-end">
     <div class="col-6 col-md">
-      <label class="form-label small mb-1">제조사</label>
+      <label class="form-label small mb-1" data-i18n="maker">{{ i18n.maker }}</label>
       <select id="f-maker" class="form-select">
-        <option value="">선택</option>
+        <option value="">—</option>
         {% for m in makers %}<option>{{ m }}</option>{% endfor %}
       </select>
     </div>
     <div class="col-6 col-md">
-      <label class="form-label small mb-1">모델명</label>
-      <select id="f-model" class="form-select" disabled><option value="">모델명</option></select>
+      <label class="form-label small mb-1" data-i18n="model">{{ i18n.model }}</label>
+      <select id="f-model" class="form-select" disabled><option value="">—</option></select>
     </div>
     <div class="col-6 col-md">
-      <label class="form-label small mb-1">세부모델</label>
-      <select id="f-mdetail" class="form-select" disabled><option value="">세부모델</option></select>
+      <label class="form-label small mb-1" data-i18n="mdetail">{{ i18n.mdetail }}</label>
+      <select id="f-mdetail" class="form-select" disabled><option value="">—</option></select>
     </div>
     <div class="col-6 col-md">
-      <label class="form-label small mb-1">년식</label>
-      <select id="f-year" class="form-select" disabled><option value="">년식</option></select>
+      <label class="form-label small mb-1" data-i18n="grade">{{ i18n.grade }}</label>
+      <select id="f-grade" class="form-select" disabled><option value="">—</option></select>
     </div>
     <div class="col-6 col-md">
-      <label class="form-label small mb-1">유종</label>
-      <select id="f-fuel" class="form-select" disabled><option value="">유종</option></select>
+      <label class="form-label small mb-1" data-i18n="gdetail">{{ i18n.gdetail }}</label>
+      <select id="f-gdetail" class="form-select" disabled><option value="">—</option></select>
     </div>
     <div class="col-6 col-md">
-      <label class="form-label small mb-1">AWD</label>
+      <label class="form-label small mb-1" data-i18n="year">{{ i18n.year }}</label>
+      <select id="f-year" class="form-select" disabled><option value="">—</option></select>
+    </div>
+    <div class="col-6 col-md">
+      <label class="form-label small mb-1" data-i18n="fuel">{{ i18n.fuel }}</label>
+      <select id="f-fuel" class="form-select" disabled><option value="">—</option></select>
+    </div>
+    <div class="col-6 col-md">
+      <label class="form-label small mb-1" data-i18n="awd">{{ i18n.awd }}</label>
       <select id="f-awd" class="form-select">
-        <option value="">전체</option>
+        <option value="">—</option>
         <option>AWD</option>
         <option>2WD</option>
         <option>미확인</option>
       </select>
     </div>
-    <div class="col-auto">
-      <button id="f-search" class="btn btn-primary px-4">검색</button>
+    <div class="col-auto d-flex gap-2">
+      <button id="f-search" class="btn btn-primary px-3" data-i18n="search">{{ i18n.search }}</button>
+      <button id="f-matrix" class="btn btn-outline-primary px-3" data-i18n="matrix">{{ i18n.matrix }}</button>
     </div>
   </div>
 </div>
+
+<div id="matrixPanel" class="glass-card p-3 mb-3 d-none">
+  <h5 class="mb-1" id="matrixTitle" data-i18n="matrix_title">{{ i18n.matrix_title }}</h5>
+  <p class="small text-muted mb-3" id="matrixSub"></p>
+  <div class="base-price-matrix scroll-hint">
+    <table class="table table-sm mb-0">
+      <thead id="matrixHead"></thead>
+      <tbody id="matrixBody"></tbody>
+    </table>
+  </div>
+</div>
+
 <div class="glass-card p-0 overflow-hidden">
   <div class="table-responsive">
     <table class="table align-middle mb-0">
       <thead>
         <tr>
-          <th>제조사</th><th>모델명</th><th>세부모델</th><th>등급</th><th>세부등급</th>
-          <th>유종</th><th>AWD</th><th>사고여부</th><th>년식</th><th>주행구간</th>
-          <th>시작가</th><th>낙찰가</th><th>전월%</th><th>표본</th>
+          <th data-i18n="maker">{{ i18n.maker }}</th>
+          <th data-i18n="model">{{ i18n.model }}</th>
+          <th data-i18n="mdetail">{{ i18n.mdetail }}</th>
+          <th data-i18n="grade">{{ i18n.grade }}</th>
+          <th data-i18n="gdetail">{{ i18n.gdetail }}</th>
+          <th data-i18n="fuel">{{ i18n.fuel }}</th>
+          <th data-i18n="awd">{{ i18n.awd }}</th>
+          <th data-i18n="accident">{{ i18n.accident }}</th>
+          <th data-i18n="year">{{ i18n.year }}</th>
+          <th data-i18n="km_bin">{{ i18n.km_bin }}</th>
+          <th data-i18n="start_avg">{{ i18n.start_avg }}</th>
+          <th data-i18n="hammer_avg">{{ i18n.hammer_avg }}</th>
+          <th data-i18n="mom">{{ i18n.mom }}</th>
+          <th data-i18n="sample_count">{{ i18n.sample_count }}</th>
+          <th></th>
         </tr>
       </thead>
       <tbody id="grid">
-        <tr><td colspan="14" class="text-center text-muted py-5">조건을 선택 후 검색하세요.</td></tr>
+        <tr><td colspan="15" class="text-center text-muted py-5" data-i18n="select_maker">{{ i18n.select_maker }}</td></tr>
       </tbody>
     </table>
   </div>
 </div>
+
+<div class="modal fade" id="bpSamplesModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-md-down bp-samples-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="min-w-0">
+          <p class="section-kicker mb-1">SAMPLES</p>
+          <h5 class="modal-title mb-0" id="bpSamplesModalLabel" data-i18n="samples_title">{{ i18n.samples_title }}</h5>
+          <p class="small text-muted mb-0 text-truncate" id="bpSamplesSubtitle"></p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ i18n.close }}"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div id="bpSamplesLoading" class="p-4 text-center text-muted d-none" data-i18n="samples_loading">{{ i18n.samples_loading }}</div>
+        <div id="bpSamplesEmpty" class="p-4 text-center text-muted d-none" data-i18n="samples_empty">{{ i18n.samples_empty }}</div>
+        <div id="bpSamplesContent" class="d-none">
+          <p class="small text-muted px-3 pt-3 mb-2" id="bpSamplesCount"></p>
+          <div class="table-responsive px-3 pb-3">
+            <table class="table table-sm table-hover align-middle mb-0 bp-samples-table">
+              <thead>
+                <tr>
+                  <th data-i18n="car_name">{{ i18n.car_name }}</th>
+                  <th data-i18n="year">{{ i18n.year }}</th>
+                  <th data-i18n="fuel">{{ i18n.fuel }}</th>
+                  <th data-i18n="awd">{{ i18n.awd }}</th>
+                  <th data-i18n="km_bin">{{ i18n.km_bin }}</th>
+                  <th class="text-end" data-i18n="start_price">{{ i18n.start_price }}</th>
+                  <th class="text-end" data-i18n="hammer_price">{{ i18n.hammer_price }}</th>
+                  <th data-i18n="accident">{{ i18n.accident }}</th>
+                  <th data-i18n="imported">{{ i18n.imported }}</th>
+                </tr>
+              </thead>
+              <tbody id="bpSamplesTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 {% block scripts %}
-<script>
-const g = id => document.getElementById(id);
-function resetSelect(sel, label) {
-  sel.innerHTML = `<option value="">${label}</option>`;
-  sel.disabled = true;
-}
-async function fill(sel, url, label) {
-  sel.disabled = true;
-  sel.innerHTML = `<option value="">불러오는 중…</option>`;
-  try {
-    const r = await fetch(url);
-    if (!r.ok) throw new Error('load failed');
-    const data = await r.json();
-    sel.innerHTML = `<option value="">${label}</option>` + data.map(v => `<option>${v}</option>`).join('');
-    sel.disabled = false;
-  } catch (e) {
-    sel.innerHTML = `<option value="">${label}</option>`;
-    toast('필터 목록을 불러오지 못했습니다.', 'warning');
-  }
-}
-g('f-maker').onchange = () => {
-  resetSelect(g('f-model'), '모델명');
-  resetSelect(g('f-mdetail'), '세부모델');
-  resetSelect(g('f-year'), '년식');
-  resetSelect(g('f-fuel'), '유종');
-  if (g('f-maker').value) {
-    fill(g('f-model'), `/api/cascade/models?maker=${encodeURIComponent(g('f-maker').value)}`, '모델명');
-    fill(g('f-fuel'), `/api/cascade/fuels?maker=${encodeURIComponent(g('f-maker').value)}`, '유종');
-  }
-};
-g('f-model').onchange = () => {
-  resetSelect(g('f-mdetail'), '세부모델');
-  resetSelect(g('f-year'), '년식');
-  if (g('f-model').value) {
-    fill(g('f-mdetail'), `/api/cascade/car_names?maker=${encodeURIComponent(g('f-maker').value)}&model_name=${encodeURIComponent(g('f-model').value)}`, '세부모델');
-  }
-};
-g('f-mdetail').onchange = () => {
-  resetSelect(g('f-year'), '년식');
-  if (g('f-mdetail').value) {
-    fill(g('f-year'), `/api/cascade/years?maker=${encodeURIComponent(g('f-maker').value)}&model_name=${encodeURIComponent(g('f-model').value)}&mdetail_name=${encodeURIComponent(g('f-mdetail').value)}`, '년식');
-  }
-};
-g('f-search').onclick = async () => {
-  if (!g('f-maker').value) return toast('제조사를 선택하세요.', 'warning');
-  const q = new URLSearchParams({
-    maker: g('f-maker').value,
-    model_name: g('f-model').value,
-    mdetail_name: g('f-mdetail').value,
-    car_year: g('f-year').value,
-    fuel: g('f-fuel').value,
-    awd: g('f-awd').value,
-  });
-  g('grid').innerHTML = '<tr><td colspan="14" class="text-center py-4 text-muted">검색 중…</td></tr>';
-  try {
-    const r = await fetch('/api/grid?' + q);
-    const rows = await r.json();
-    if (!rows.length) {
-      g('grid').innerHTML = '<tr><td colspan="14" class="text-center text-muted py-4">결과 없음</td></tr>';
-      return;
-    }
-    g('grid').innerHTML = rows.map(x => `<tr>
-      <td>${x.maker||''}</td>
-      <td>${x.model_name||''}</td>
-      <td>${x.mdetail_name||''}</td>
-      <td>${x.grade_name||''}</td>
-      <td class="small">${x.gdetail_name||''}</td>
-      <td>${x.fuel||''}</td>
-      <td>${x.awd||''}</td>
-      <td>${x.is_accident_free||''}</td>
-      <td>${x.car_year||''}</td>
-      <td>${x.km_bin||''}</td>
-      <td>${x.start_avg?.toFixed?.(0)||'-'}</td>
-      <td class="fw-semibold">${x.hammer_avg?.toFixed?.(0)||'-'}</td>
-      <td>${x.mom_pct==null?'-':x.mom_pct+'%'}</td>
-      <td>${x.sample_count||0}</td>
-    </tr>`).join('');
-  } catch (e) {
-    g('grid').innerHTML = '<tr><td colspan="14" class="text-center text-danger py-4">검색 실패</td></tr>';
-    toast('시세 검색에 실패했습니다.', 'danger');
-  }
-};
-</script>
+<script src="{{ url_for('static', filename='js/market.js') }}?v=1"></script>
 {% endblock %}
