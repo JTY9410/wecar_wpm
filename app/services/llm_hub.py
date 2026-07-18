@@ -245,7 +245,7 @@ def generate_market_summary(sample_rows):
         lines.append(
             f"- {r.get('maker','')}/{r.get('model_name','')}/{r.get('car_year','')} "
             f"{r.get('imported','')} {r.get('km_bin','')} "
-            f"낙찰평균={r.get('hammer_avg')} 표본={r.get('sample_count')} MoM={r.get('mom_pct')}"
+            f"낙찰평균={r.get('hammer_avg')} 표본={r.get('sample_count')} 전주대비={r.get('mom_pct')}"
         )
     prompt = (
         "아래는 주간 경매 도매 시세 집계 샘플입니다. "

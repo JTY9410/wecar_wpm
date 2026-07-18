@@ -133,7 +133,8 @@ def grid(maker=None, model_name=None, mdetail_name=None, car_name=None,
         "is_accident_free": _accident_label(r.is_accident_free, lang),
         "is_accident_free_flag": bool(r.is_accident_free),
         "km_bin": _clean(r.km_bin), "start_avg": r.start_avg, "hammer_avg": r.hammer_avg,
-        "mom_pct": r.mom_pct, "sample_count": r.sample_count, "note": _clean(r.note),
+        "wow_pct": r.mom_pct, "mom_pct": r.mom_pct,  # mom_pct=전주대비(%) alias
+        "sample_count": r.sample_count, "note": _clean(r.note),
     } for r in rows]
 
 

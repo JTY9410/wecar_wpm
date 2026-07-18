@@ -92,7 +92,8 @@ def prices():
         "km_bin": r.km_bin,
         "start_avg": r.start_avg,
         "hammer_avg": r.hammer_avg,
-        "mom_pct": r.mom_pct,
+        "wow_pct": r.mom_pct,  # 전주대비(%) — DB 컬럼명 mom_pct 유지
+        "mom_pct": r.mom_pct,  # backward-compat alias
         "sample_count": r.sample_count,
         "week_no": r.week_no,
         "note": r.note,
@@ -151,7 +152,7 @@ def lookup():
             "is_accident_free": r.is_accident_free,
             "km_bin": r.km_bin, "hammer_avg": r.hammer_avg,
             "start_avg": r.start_avg, "sample_count": r.sample_count,
-            "mom_pct": r.mom_pct, "imported": r.imported,
+            "wow_pct": r.mom_pct, "mom_pct": r.mom_pct, "imported": r.imported,
             "car_code": r.car_code,
         } for r in rows],
     })

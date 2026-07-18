@@ -208,7 +208,7 @@ def load_price_table(xls):
 
 
 def rebuild_market_summary(week_no):
-    """Aggregate AuctionRecord into MarketSummary — 낙찰가(hammer) 기준."""
+    """Aggregate AuctionRecord into MarketSummary — 낙찰가 기준 · 전주대비(%)."""
     MarketSummary.query.delete()
     records = AuctionRecord.query.filter(
         AuctionRecord.hammer_price.isnot(None),
@@ -235,18 +235,25 @@ def rebuild_market_summary(week_no):
     ]
     weekly = df.groupby(group_keys + ["week_no"], dropna=False).agg(
         hammer_avg=("hammer_price", "mean"),
-    ).reset_index()
-
-    latest = df.groupby(group_keys, dropna=False).agg(
+        start_avg=("start_price", "mean"),
+        sample_count=("hammer_price", "count"),
         car_code=("car_code", "first"),
         car_name=("car_name", "first"),
-        start_avg=("start_price", "mean"),
-        hammer_avg=("hammer_price", "mean"),
-        sample_count=("hammer_price", "count"),
     ).reset_index()
 
     weeks_sorted = sorted([w for w in df["week_no"].dropna().unique()])
-    prev_week = weeks_sorted[-2] if len(weeks_sorted) >= 2 else None
+    current_week = week_no if week_no in set(weeks_sorted) else (
+        weeks_sorted[-1] if weeks_sorted else week_no)
+    prev_week = None
+    if current_week in weeks_sorted:
+        idx = weeks_sorted.index(current_week)
+        if idx > 0:
+            prev_week = weeks_sorted[idx - 1]
+    elif len(weeks_sorted) >= 2:
+        current_week = weeks_sorted[-1]
+        prev_week = weeks_sorted[-2]
+
+    cur_df = weekly[weekly["week_no"] == current_week]
     prev_lookup = {}
     if prev_week is not None:
         pw = weekly[weekly["week_no"] == prev_week]
@@ -254,13 +261,17 @@ def rebuild_market_summary(week_no):
             prev_lookup[tuple(row[k] for k in group_keys)] = row["hammer_avg"]
 
     count = 0
-    for _, row in latest.iterrows():
+    for _, row in cur_df.iterrows():
         key = tuple(row[k] for k in group_keys)
         prev = prev_lookup.get(key)
         cur = row["hammer_avg"]
-        mom = None
+        # mom_pct 컬럼에 전주대비(%) 저장 (스키마 유지)
+        wow = None
         if prev and prev != 0:
-            mom = round((cur - prev) / prev * 100, 2)
+            wow = round((cur - prev) / prev * 100, 2)
+        note = f"주간 집계 완료 ({current_week})"
+        if prev_week:
+            note += f" · 전주대비 기준 {prev_week}"
         db.session.add(MarketSummary(
             car_code=row["car_code"], maker=row["maker"], model_name=row["model_name"],
             mdetail_name=row["mdetail_name"], grade_name=row["grade_name"],
@@ -269,8 +280,8 @@ def rebuild_market_summary(week_no):
             imported=row["imported"], is_accident_free=bool(row["is_accident_free"]),
             km_bin=row["km_bin"],
             start_avg=_safe_float(row["start_avg"]), hammer_avg=_safe_float(cur),
-            mom_pct=mom, sample_count=int(row["sample_count"]), week_no=week_no,
-            note=f"주간 집계 완료 ({week_no})",
+            mom_pct=wow, sample_count=int(row["sample_count"]), week_no=current_week,
+            note=note,
         ))
         count += 1
     db.session.commit()

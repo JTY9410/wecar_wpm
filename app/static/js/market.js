@@ -162,7 +162,7 @@
         <td>${esc(x.car_year)}</td>
         <td>${esc(x.km_bin)}</td>
         <td class="fw-semibold text-end">${x.hammer_avg != null ? Number(x.hammer_avg).toLocaleString() : "-"}</td>
-        <td>${x.mom_pct == null ? "-" : x.mom_pct + "%"}</td>
+        <td>${x.wow_pct == null && x.mom_pct == null ? "-" : (x.wow_pct ?? x.mom_pct) + "%"}</td>
         <td>${x.sample_count || 0}</td>
         <td class="text-nowrap">${rowActions(x)}</td>
       </tr>`).join("");
