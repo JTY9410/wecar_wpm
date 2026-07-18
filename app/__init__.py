@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, url_for
 
@@ -10,6 +10,7 @@ def create_app(config_class=Config):
     app = Flask(__name__, static_folder="static", template_folder="templates")
     app.config.from_object(config_class)
     config_class.ensure_dirs()
+    app.url_map.strict_slashes = False
 
     db.init_app(app)
     migrate.init_app(app, db)
@@ -40,6 +41,18 @@ def create_app(config_class=Config):
     @app.route("/health")
     def health():
         return jsonify({"status": "ok", "app": app.config["APP_NAME"]})
+
+    @app.route("/service-worker.js")
+    def service_worker():
+        response = send_from_directory(Path(app.root_path) / "static", "service-worker.js")
+        response.headers["Content-Type"] = "application/javascript; charset=utf-8"
+        response.headers["Service-Worker-Allowed"] = "/"
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+    @app.route("/manifest.json")
+    def web_manifest():
+        return send_from_directory(Path(app.root_path) / "static", "manifest.json")
 
     @app.route("/static/storage/car_images/<path:filename>")
     def car_image(filename):
