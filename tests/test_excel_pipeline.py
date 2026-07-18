@@ -35,6 +35,20 @@ def test_overwrite_replaces_week(app, db, mini):
     assert AuctionRecord.query.filter_by(week_no="2026-W29").count() == 3
 
 
+def test_upload_stores_hierarchy_columns(app, db, mini):
+    process_weekly_upload(mini, week_no="2026-W29", mode="append")
+    row = AuctionRecord.query.filter_by(car_name="현대 그랜저HG 300").first()
+    assert row.maker == "현대"
+    assert row.model_name == "그랜저"
+    assert row.mdetail_name == "그랜저HG"
+    assert row.grade_name  # not full car_name dump
+    assert "|" not in (row.car_code or "")
+    assert len(row.car_code) == 16
+    assert row.fuel
+    assert row.awd
+    assert row.is_accident_free is False
+
+
 def test_missing_column_rejected(app, db, tmp_path):
     import openpyxl
     p = str(tmp_path / "bad.xlsx")

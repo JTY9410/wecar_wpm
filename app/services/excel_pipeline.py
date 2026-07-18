@@ -13,7 +13,7 @@ from app.extensions import db
 from app.models import AuctionRecord, MarketSummary, VehiclePriceTable
 from app.services.accident import is_accident_free
 from app.services.awd_utils import normalize_awd
-from app.services.car_code import build_car_code
+from app.services.car_code import build_car_code, extract_grade_gdetail
 from app.services.fuel_utils import normalize_fuel
 from app.services.hierarchy import ensure_hierarchy
 from app.services.mileage import calculate_mileage_bin
@@ -111,13 +111,18 @@ def parse_records(df, references, week_no):
         w = row.get(w_col) if w_col else None
         acc_free = is_accident_free(acc_detail, xx, w)
 
-        # 계층: 제조사 → 차종(모델) → 모델명(상세모델) → 등급(기본) → 차명(상세등급)
+        # 계층 컬럼 분리 저장: 제조사·모델(차종)·세부모델(모델명)·등급·세부등급
+        model = str(kind) if kind is not None and str(kind).strip() not in ("", "nan") else (
+            str(model_name) if model_name is not None else None)
+        mdetail = str(model_name) if model_name is not None and str(model_name).strip() not in ("", "nan") else model
+        grade, gdetail = extract_grade_gdetail(
+            maker=str(maker) if maker is not None else None,
+            model=model, mdetail=mdetail,
+            car_name=str(car_name) if car_name is not None else None,
+        )
         hier = ensure_hierarchy(
             maker=str(maker) if maker is not None else None,
-            model=str(kind) if kind is not None else str(model_name) if model_name is not None else None,
-            mdetail=str(model_name) if model_name is not None else None,
-            grade="기본",
-            gdetail=str(car_name) if car_name is not None else None,
+            model=model, mdetail=mdetail, grade=grade, gdetail=gdetail,
         )
         code = build_car_code(
             maker=hier["maker"], model=hier["model"], mdetail=hier["mdetail"],
@@ -125,6 +130,7 @@ def parse_records(df, references, week_no):
             car_year=car_year, fuel=fuel, awd=awd,
             car_name=str(car_name) if car_name is not None else None,
             car_option=str(option) if option is not None else None,
+            accident_free=acc_free,
         )
         rec = AuctionRecord(
             week_no=week_no,
@@ -192,7 +198,10 @@ def load_price_table(xls):
 
 
 def rebuild_market_summary(week_no):
-    """Aggregate all AuctionRecord into MarketSummary; MoM vs previous week."""
+    """Aggregate all AuctionRecord into MarketSummary; MoM vs previous week.
+
+    집계 키는 카코드 문자열이 아니라 계층·유종·AWD·사고여부 컬럼이다.
+    """
     MarketSummary.query.delete()
     records = AuctionRecord.query.all()
     if not records:
@@ -209,21 +218,18 @@ def rebuild_market_summary(week_no):
         "hammer_price": r.hammer_price, "week_no": r.week_no,
     } for r in records])
 
-    group_keys = ["car_code", "km_bin", "is_accident_free", "imported"]
+    # 차원 컬럼으로 집계 (car_code는 대표 해시만 보관)
+    group_keys = [
+        "maker", "model_name", "mdetail_name", "grade_name", "gdetail_name",
+        "car_year", "fuel", "awd", "is_accident_free", "imported", "km_bin",
+    ]
     weekly = df.groupby(group_keys + ["week_no"], dropna=False).agg(
         hammer_avg=("hammer_price", "mean"),
     ).reset_index()
 
     latest = df.groupby(group_keys, dropna=False).agg(
-        maker=("maker", "first"),
-        model_name=("model_name", "first"),
-        mdetail_name=("mdetail_name", "first"),
-        grade_name=("grade_name", "first"),
-        gdetail_name=("gdetail_name", "first"),
+        car_code=("car_code", "first"),
         car_name=("car_name", "first"),
-        car_year=("car_year", "first"),
-        fuel=("fuel", "first"),
-        awd=("awd", "first"),
         start_avg=("start_price", "mean"),
         hammer_avg=("hammer_price", "mean"),
         sample_count=("hammer_price", "count"),
@@ -313,3 +319,50 @@ def process_weekly_upload(file_path, week_no, mode="append"):
 
     summaries = rebuild_market_summary(week_no)
     return {"rows_ok": len(records), "records": len(records), "summaries": summaries}
+
+
+def clear_all_auction_data(clear_history=True):
+    """업로드된 경매/시세 데이터를 전부 삭제."""
+    from app.models import UploadHistory, VehicleGrade, VehicleGradeDetail, VehicleMaker, VehicleModel, VehicleModelDetail
+
+    n_rec = AuctionRecord.query.delete()
+    n_sum = MarketSummary.query.delete()
+    n_price = VehiclePriceTable.query.delete()
+    VehicleGradeDetail.query.delete()
+    VehicleGrade.query.delete()
+    VehicleModelDetail.query.delete()
+    VehicleModel.query.delete()
+    VehicleMaker.query.delete()
+    n_hist = 0
+    if clear_history:
+        n_hist = UploadHistory.query.delete()
+    db.session.commit()
+    return {
+        "ok": True,
+        "deleted_records": n_rec,
+        "deleted_summaries": n_sum,
+        "deleted_price_rows": n_price,
+        "deleted_history": n_hist,
+    }
+
+
+def delete_upload_by_history(history_id):
+    """특정 업로드 이력의 주차 데이터를 삭제하고 시세를 재집계."""
+    from app.models import UploadHistory
+
+    hist = db.session.get(UploadHistory, history_id)
+    if hist is None:
+        return {"ok": False, "error": "업로드 이력을 찾을 수 없습니다."}
+    week_no = hist.week_no
+    n = AuctionRecord.query.filter_by(week_no=week_no).delete() if week_no else 0
+    db.session.delete(hist)
+    db.session.commit()
+    # 남은 데이터 기준 재집계
+    remaining = AuctionRecord.query.order_by(AuctionRecord.id.desc()).first()
+    summaries = rebuild_market_summary(remaining.week_no if remaining else week_no)
+    return {
+        "ok": True,
+        "deleted_records": n,
+        "week_no": week_no,
+        "summaries": summaries,
+    }

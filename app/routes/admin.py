@@ -96,7 +96,49 @@ def upload():
         AuctionRecord.query.filter_by(week_no=week_no).all()
     )
     result["rag"] = rag_status.get("status")
-    return jsonify({"ok": True, **result})
+    train = result.get("train") or {}
+    message = (
+        f"업로드 완료: {result['rows_ok']}행 · 시세 {result['summaries']}건 · "
+        f"학습 {'성공' if train.get('trained') else 'SKIP'}"
+    )
+    if result.get("rag") and result["rag"] != "OK":
+        message += f" · RAG {result['rag']}"
+    return jsonify({"ok": True, "message": message, **result})
+
+
+@admin_bp.route("/upload/clear", methods=["POST"])
+@login_required
+@admin_required
+def upload_clear():
+    from app.services.excel_pipeline import clear_all_auction_data
+    result = clear_all_auction_data(clear_history=True)
+    db.session.add(SyncLog(sync_type="UPLOAD_CLEAR", status="SUCCESS",
+                           records_processed=result.get("deleted_records") or 0))
+    db.session.commit()
+    result["message"] = (
+        f"전체 삭제 완료: 낙찰 {result['deleted_records']}건 · "
+        f"시세 {result['deleted_summaries']}건 · 이력 {result['deleted_history']}건"
+    )
+    return jsonify(result)
+
+
+@admin_bp.route("/upload/<int:history_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def upload_delete(history_id):
+    from app.services.excel_pipeline import delete_upload_by_history
+    result = delete_upload_by_history(history_id)
+    if not result.get("ok"):
+        return jsonify(result), 404
+    db.session.add(SyncLog(sync_type="UPLOAD_DELETE", status="SUCCESS",
+                           records_processed=result.get("deleted_records") or 0,
+                           error_message=f"week={result.get('week_no')}"))
+    db.session.commit()
+    result["message"] = (
+        f"주차 {result.get('week_no')} 데이터 {result.get('deleted_records')}건 삭제 · "
+        f"시세 재집계 {result.get('summaries')}건"
+    )
+    return jsonify(result)
 
 
 @admin_bp.route("/sync", methods=["POST"])

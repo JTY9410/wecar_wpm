@@ -14,6 +14,7 @@
         <label><input type="radio" name="mode" value="reset"> 전체 초기화</label>
       </div>
       <button id="upBtn" class="btn btn-primary btn-sm">업로드 및 분석</button>
+      <button id="clearBtn" class="btn btn-outline-danger btn-sm ms-1">전체 데이터 삭제</button>
       <div id="upOut" class="small mt-2"></div>
     </div>
   </div>
@@ -100,11 +101,16 @@
 
 <div class="glass-card mt-3 p-3">
   <h6 class="fw-bold">업로드 히스토리</h6>
-  <table class="table table-sm"><thead><tr><th>일시</th><th>파일</th><th>주차</th><th>모드</th><th>상태</th><th>행수</th><th>작업자</th></tr></thead>
-  <tbody>{% for h in history %}<tr><td>{{ h.created_at.strftime('%m-%d %H:%M') }}</td><td>{{ h.filename }}</td>
+  <table class="table table-sm"><thead><tr><th>일시</th><th>파일</th><th>주차</th><th>모드</th><th>상태</th><th>행수</th><th>작업자</th><th></th></tr></thead>
+  <tbody>{% for h in history %}<tr data-id="{{ h.id }}">
+    <td>{{ h.created_at.strftime('%m-%d %H:%M') }}</td><td>{{ h.filename }}</td>
     <td>{{ h.week_no }}</td><td>{{ h.mode }}</td>
     <td><span class="badge bg-{{ 'success' if h.status=='SUCCESS' else 'danger' }}">{{ h.status }}</span></td>
-    <td>{{ h.rows_ok }}</td><td>{{ h.operator }}</td></tr>{% endfor %}</tbody></table>
+    <td>{{ h.rows_ok }}</td><td>{{ h.operator }}</td>
+    <td class="text-end">
+      <button type="button" class="btn btn-sm btn-outline-danger hist-del" data-id="{{ h.id }}">삭제</button>
+    </td>
+  </tr>{% endfor %}</tbody></table>
 </div>
 
 <div class="glass-card mt-3 p-3">
@@ -136,9 +142,27 @@ document.getElementById('upBtn').onclick = async () => {
   document.getElementById('upOut').textContent = '처리 중…';
   const r = await fetch('/admin/upload', {method:'POST', body:fd});
   const d = await r.json();
-  document.getElementById('upOut').textContent = JSON.stringify(d);
-  toast(d.ok ? `완료: ${d.rows_ok}행` : d.error, d.ok ? 'success' : 'danger');
+  if (d.ok) {
+    document.getElementById('upOut').textContent = d.message || `완료: ${d.rows_ok}행`;
+    toast(d.message || `완료: ${d.rows_ok}행`, 'success');
+    setTimeout(() => location.reload(), 900);
+  } else {
+    document.getElementById('upOut').textContent = d.error || '실패';
+    toast(d.error || '업로드 실패', 'danger');
+  }
 };
+document.getElementById('clearBtn').onclick = async () => {
+  if (!confirm('업로드된 경매·시세 데이터를 모두 삭제할까요?')) return;
+  const d = await post('/admin/upload/clear');
+  if (d.ok) setTimeout(() => location.reload(), 700);
+};
+document.querySelectorAll('.hist-del').forEach(btn => {
+  btn.onclick = async () => {
+    if (!confirm('해당 주차 업로드 데이터를 삭제할까요?')) return;
+    const d = await post(`/admin/upload/${btn.dataset.id}/delete`);
+    if (d.ok) setTimeout(() => location.reload(), 700);
+  };
+});
 async function post(url, body) {
   const fd = new FormData(); if (body) for (const k in body) fd.append(k, body[k]);
   const r = await fetch(url, {method:'POST', body:fd});

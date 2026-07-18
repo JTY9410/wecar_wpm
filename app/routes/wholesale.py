@@ -8,7 +8,7 @@ from functools import wraps
 from flask import Blueprint, current_app, jsonify, request
 
 from app.models import MarketSummary, VehicleGrade, VehicleGradeDetail, VehicleMaker, VehicleModel, VehicleModelDetail
-from app.services.car_code import build_car_code, parse_car_code
+from app.services.car_code import build_car_code
 from app.services import market_query
 
 wholesale_bp = Blueprint("wholesale", __name__, url_prefix="/api/v1/wholesale")
@@ -110,18 +110,46 @@ def lookup():
         car_year=request.args.get("car_year", type=int),
         fuel=request.args.get("fuel"),
         awd=request.args.get("awd"),
+        accident_free=(
+            True if request.args.get("accident_free") == "1"
+            else False if request.args.get("accident_free") == "0"
+            else None
+        ),
     )
-    rows = MarketSummary.query.filter_by(car_code=code).all()
+    q = MarketSummary.query.filter_by(car_code=code)
+    # 해시 미일치 시 차원 컬럼으로 폴백 조회
+    if q.count() == 0:
+        q = MarketSummary.query
+        if request.args.get("maker"):
+            q = q.filter_by(maker=request.args.get("maker"))
+        if request.args.get("model"):
+            q = q.filter_by(model_name=request.args.get("model"))
+        if request.args.get("mdetail"):
+            q = q.filter_by(mdetail_name=request.args.get("mdetail"))
+        if request.args.get("grade"):
+            q = q.filter_by(grade_name=request.args.get("grade"))
+        if request.args.get("gdetail"):
+            q = q.filter_by(gdetail_name=request.args.get("gdetail"))
+        if request.args.get("car_year", type=int):
+            q = q.filter_by(car_year=request.args.get("car_year", type=int))
+        if request.args.get("fuel"):
+            q = q.filter_by(fuel=request.args.get("fuel"))
+        if request.args.get("awd"):
+            q = q.filter_by(awd=request.args.get("awd"))
+    rows = q.limit(100).all()
     return jsonify({
         "ok": True,
         "car_code": code,
-        "parsed": parse_car_code(code),
         "count": len(rows),
         "items": [{
+            "maker": r.maker, "model": r.model_name, "mdetail": r.mdetail_name,
+            "grade": r.grade_name, "gdetail": r.gdetail_name,
+            "car_year": r.car_year, "fuel": r.fuel, "awd": r.awd,
+            "is_accident_free": r.is_accident_free,
             "km_bin": r.km_bin, "hammer_avg": r.hammer_avg,
             "start_avg": r.start_avg, "sample_count": r.sample_count,
             "mom_pct": r.mom_pct, "imported": r.imported,
-            "is_accident_free": r.is_accident_free,
+            "car_code": r.car_code,
         } for r in rows],
     })
 
