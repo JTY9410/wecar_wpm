@@ -115,6 +115,10 @@ def create_app(config_class=Config):
         user = seed_admin(app)
         print(f"seeded admin: {user.username} ({user.role})")
 
+    from app.cli import sync_listings_cmd
+    app.cli.add_command(sync_listings_cmd)
+
+    # Prefer a dedicated scheduler process/container (ENABLE_SCHEDULER=0 on web).
     if app.config.get("ENABLE_SCHEDULER"):
         from app.services.scheduler import start_scheduler
         start_scheduler(app)

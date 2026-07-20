@@ -45,6 +45,7 @@ class Config:
     INIT_ADMIN_PASSWORD = os.getenv("INIT_ADMIN_PASSWORD", "1004wecar")
 
     ENABLE_SCHEDULER = os.getenv("ENABLE_SCHEDULER", "0") == "1"
+    SYNC_BATCH_SIZE = int(os.getenv("SYNC_BATCH_SIZE", "500"))
 
     # Business constraints (PRD §2.2 / §5)
     RATE_LIMIT_DAILY = 20

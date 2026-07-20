@@ -12,6 +12,7 @@ scikit-learn==1.5.2
 joblib==1.4.2
 APScheduler==3.10.4
 requests==2.32.3
+ijson==3.3.0
 python-Levenshtein==0.25.1
 google-genai==0.3.0
 gunicorn==23.0.0

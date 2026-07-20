@@ -15,6 +15,13 @@ class FakeResp:
     def json(self):
         return self._payload
 
+    def iter_content(self, chunk_size=1024):
+        import json
+        yield json.dumps(self._payload).encode("utf-8")
+
+    def close(self):
+        pass
+
 
 class FakeSession:
     """Primary always fails; fallback returns data."""
@@ -22,7 +29,7 @@ class FakeSession:
         self.primary_ok = primary_ok
         self.calls = []
 
-    def get(self, url, timeout=None):
+    def get(self, url, timeout=None, params=None, stream=False):
         self.calls.append(url)
         if "carmanager" in url:  # fallback host
             return FakeResp({"data": [{"CarNo": "F1", "CarName": "폴백차"}]})
@@ -40,7 +47,7 @@ def test_fallback_triggered(app, db, monkeypatch):
 
 def test_all_fail_raises():
     class Dead:
-        def get(self, url, timeout=None):
+        def get(self, url, timeout=None, params=None, stream=False):
             raise RuntimeError("network down")
     try:
         fetch_listings(session=Dead())
@@ -61,3 +68,46 @@ def test_sync_marks_missing_as_sold(app, db):
     assert db.session.get(Listing, "OLD1").is_sold is True   # missing → sold, preserved
     assert db.session.get(Listing, "NEW1").is_sold is False
     assert SyncLog.query.filter_by(sync_type="AUTO_API_SYNC").count() == 1
+
+
+def test_iter_listing_pages_chunks(app, monkeypatch):
+    from app.services.api_client import iter_listing_pages
+
+    class Paginated:
+        def get(self, url, timeout=None, params=None, stream=False):
+            page = int((params or {}).get("page", 1))
+            limit = int((params or {}).get("limit", 500))
+            if "carmanager" in url:
+                raise RuntimeError("skip fallback")
+            if page == 1:
+                return FakeResp({"data": [{"CarNo": str(i)} for i in range(limit)]})
+            if page == 2:
+                return FakeResp({"data": [{"CarNo": str(i)} for i in range(limit, limit + 50)]})
+            return FakeResp({"data": []})
+
+    monkeypatch.setattr("app.services.api_client.Config.KS_API_BASE_URL", "https://ks.example/kindsisters")
+    monkeypatch.setattr(
+        "app.services.api_client.Config.FALLBACK_API_BASE_URL",
+        "https://extapi.carmanager.co.kr",
+    )
+
+    pages = list(iter_listing_pages(per_page=100, session=Paginated()))
+    assert len(pages) == 2
+    assert len(pages[0][0]) == 100
+    assert len(pages[1][0]) == 50
+
+
+def test_iter_listing_pages_oversized_dump(app, monkeypatch):
+    from app.services.api_client import iter_listing_pages
+
+    class Dump:
+        def get(self, url, timeout=None, params=None, stream=False):
+            if "carmanager" in url:
+                raise RuntimeError("skip fallback")
+            return FakeResp({"data": [{"CarNo": str(i)} for i in range(250)]})
+
+    monkeypatch.setattr("app.services.api_client.Config.KS_API_BASE_URL", "https://ks.example/kindsisters")
+    monkeypatch.setattr("app.services.api_client.Config.FALLBACK_API_BASE_URL", "")
+
+    pages = list(iter_listing_pages(per_page=100, session=Dump()))
+    assert [len(p[0]) for p in pages] == [100, 100, 50]

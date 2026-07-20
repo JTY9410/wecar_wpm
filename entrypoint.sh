@@ -3,6 +3,11 @@ set -e
 
 export FLASK_APP=run.py
 
+# Allow docker-compose `command:` overrides (e.g. dedicated scheduler process).
+if [ "$#" -gt 0 ]; then
+  exec "$@"
+fi
+
 echo "[entrypoint] ensuring instance directories..."
 mkdir -p instance/storage/car_images instance/storage/excel_uploads instance/storage/chroma
 
