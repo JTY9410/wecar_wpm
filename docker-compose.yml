@@ -1,7 +1,10 @@
+# wecar WPM — independent stack (no shared network/DB with wecar PM)
+name: wecarwpm
+
 services:
   web:
     build: .
-    container_name: wecarcar1-web
+    container_name: wecarwpm-web
     ports:
       - "8090:5000"
     env_file:
@@ -10,8 +13,12 @@ services:
       DATABASE_URL: sqlite:///instance/wecarcar1_auto.db
       ENABLE_SCHEDULER: "0"
       SYNC_BATCH_SIZE: "500"
+      # Future PM integration is inbound only (wholesale API). Leave unset until linked.
+      INTEGRATION_MODE: "standalone"
     volumes:
       - ./instance:/app/instance
+    networks:
+      - wecarwpm_net
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=5)"]
@@ -22,7 +29,7 @@ services:
 
   scheduler:
     build: .
-    container_name: wecarcar1-scheduler
+    container_name: wecarwpm-scheduler
     depends_on:
       web:
         condition: service_healthy
@@ -32,7 +39,15 @@ services:
       DATABASE_URL: sqlite:///instance/wecarcar1_auto.db
       ENABLE_SCHEDULER: "0"
       SYNC_BATCH_SIZE: "500"
+      INTEGRATION_MODE: "standalone"
     command: ["python", "-m", "app.scheduler_main"]
     volumes:
       - ./instance:/app/instance
+    networks:
+      - wecarwpm_net
     restart: unless-stopped
+
+networks:
+  wecarwpm_net:
+    name: wecarwpm_net
+    driver: bridge

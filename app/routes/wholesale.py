@@ -32,7 +32,12 @@ def require_api_key(fn):
 
 @wholesale_bp.route("/health")
 def health():
-    return jsonify({"ok": True, "service": "wecarcar1-wholesale", "app": current_app.config["APP_NAME"]})
+    return jsonify({
+        "ok": True,
+        "service": "wecarwpm-wholesale",
+        "app": current_app.config["APP_NAME"],
+        "integration_mode": current_app.config.get("INTEGRATION_MODE", "standalone"),
+    })
 
 
 @wholesale_bp.route("/prices")

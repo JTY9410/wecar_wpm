@@ -66,7 +66,14 @@ def create_app(config_class=Config):
 
     @app.route("/health")
     def health():
-        return jsonify({"status": "ok", "app": app.config["APP_NAME"]})
+        return jsonify(
+            {
+                "status": "ok",
+                "service": app.config.get("SERVICE_ID", "wecarcar1"),
+                "app": app.config["APP_NAME"],
+                "integration_mode": app.config.get("INTEGRATION_MODE", "standalone"),
+            }
+        )
 
     @app.route("/service-worker.js")
     def service_worker():

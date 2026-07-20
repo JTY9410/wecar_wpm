@@ -17,6 +17,7 @@ def _abs(path: str) -> str:
 class Config:
     FLASK_ENV = os.getenv("FLASK_ENV", "development")
     APP_NAME = os.getenv("APP_NAME", "wecar WPM")
+    SERVICE_ID = os.getenv("SERVICE_ID", "wecarcar1")
     BRAND_MARK = os.getenv("BRAND_MARK", "WPM")
     SECRET_KEY = os.getenv("SECRET_KEY", "change-me")
 
@@ -60,8 +61,10 @@ class Config:
 
     LISTINGS_PATH = "listings"
     IMAGE_URL_PREFIX = "/static/storage/car_images"
-    # car 소매시세 연동용 외부 API 키 (SSOT)
+    # Wholesale API key for future PM (or other) consumers — inbound only.
     EXTERNAL_API_KEY = os.getenv("EXTERNAL_API_KEY", "")
+    # Runtime mode: standalone (default) | linked (when a PM consumer is wired)
+    INTEGRATION_MODE = os.getenv("INTEGRATION_MODE", "standalone")
 
     @classmethod
     def ensure_dirs(cls):
