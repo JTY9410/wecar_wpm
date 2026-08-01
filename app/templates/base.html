@@ -22,16 +22,13 @@
 <div id="inappEscapeOverlay" class="inapp-overlay d-none" role="dialog" aria-modal="true">
   <div class="inapp-card glass-card">
     <p class="section-kicker mb-2">BROWSER</p>
-    <h2 class="h5 mb-2">외부 브라우저에서 열어주세요</h2>
-    <p class="text-muted small mb-3">
-      카카오톡·네이버·인스타그램 등 인앱 브라우저에서는 앱 설치와 일부 기능이 제한됩니다.
-      Chrome 또는 Safari로 이동해 주세요.
-    </p>
+    <h2 class="h5 mb-2">{{ t('inapp_title') }}</h2>
+    <p class="text-muted small mb-3">{{ t('inapp_desc') }}</p>
     <input type="text" id="inappCopyUrl" class="form-control form-control-sm mb-2" readonly>
-    <p id="inappCopyTip" class="small text-muted mb-3">아래 버튼으로 링크를 복사한 뒤 Safari에 붙여넣으세요.</p>
+    <p id="inappCopyTip" class="small text-muted mb-3">{{ t('inapp_copy_tip') }}</p>
     <div class="d-flex flex-column flex-sm-row flex-wrap gap-2">
-      <button type="button" id="inappOpenBtn" class="btn btn-primary">외부 브라우저로 열기</button>
-      <button type="button" id="inappCopyBtn" class="btn btn-outline-primary">링크 복사</button>
+      <button type="button" id="inappOpenBtn" class="btn btn-primary">{{ t('inapp_open_btn') }}</button>
+      <button type="button" id="inappCopyBtn" class="btn btn-outline-primary">{{ t('inapp_copy_btn') }}</button>
     </div>
   </div>
 </div>
@@ -39,40 +36,40 @@
 <div id="pwaInstallBanner" class="pwa-install-banner glass-card d-none">
   <div class="d-flex align-items-center gap-3 flex-wrap">
     <div class="flex-grow-1">
-      <strong class="d-block">홈 화면에 추가</strong>
-      <span class="small text-muted">앱처럼 빠르게 {{ config.APP_NAME }}을 실행하세요.</span>
+      <strong class="d-block">{{ t('pwa_add_title') }}</strong>
+      <span class="small text-muted">{{ t('pwa_add_desc').replace('{app}', config.APP_NAME) }}</span>
     </div>
     <div class="d-flex flex-column flex-sm-row gap-2">
-      <button type="button" id="pwaInstallBtn" class="btn btn-sm btn-primary">설치</button>
-      <button type="button" id="pwaInstallDismiss" class="btn btn-sm btn-light">나중에</button>
+      <button type="button" id="pwaInstallBtn" class="btn btn-sm btn-primary">{{ t('pwa_install_btn') }}</button>
+      <button type="button" id="pwaInstallDismiss" class="btn btn-sm btn-light">{{ t('pwa_later_btn') }}</button>
     </div>
   </div>
 </div>
 
 {% if current_user.is_authenticated %}
-<aside class="side-rail d-none d-lg-flex" aria-label="주요 메뉴">
+<aside class="side-rail d-none d-lg-flex" aria-label="{{ t('primary_menu') }}">
   <a href="{{ url_for('market.index') }}" class="side-rail-brand" title="{{ config.APP_NAME }}">
     <span class="brand-mark">{{ brand }}</span>
   </a>
   <nav class="side-rail-nav">
-    <a href="{{ url_for('market.index') }}" class="side-rail-item {{ 'active' if ep and ep.startswith('market.') }}" title="시세 분석">
+    <a href="{{ url_for('market.index') }}" class="side-rail-item {{ 'active' if ep and ep.startswith('market.') }}" title="{{ t('nav_market') }}">
       <span class="side-rail-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 15V9"/><path d="M13 15V7"/><path d="M18 15v-3"/></svg>
       </span>
-      <span class="side-rail-label">시세</span>
+      <span class="side-rail-label">{{ t('nav_market') }}</span>
     </a>
     {% if current_user.is_admin %}
-    <a href="{{ url_for('admin.dashboard') }}" class="side-rail-item {{ 'active' if ep == 'admin.dashboard' }}" title="관리">
+    <a href="{{ url_for('admin.dashboard') }}" class="side-rail-item {{ 'active' if ep == 'admin.dashboard' }}" title="{{ t('admin') }}">
       <span class="side-rail-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
       </span>
-      <span class="side-rail-label">관리</span>
+      <span class="side-rail-label">{{ t('admin') }}</span>
     </a>
-    <a href="{{ url_for('admin.users') }}" class="side-rail-item {{ 'active' if ep == 'admin.users' }}" title="회원">
+    <a href="{{ url_for('admin.users') }}" class="side-rail-item {{ 'active' if ep == 'admin.users' }}" title="{{ t('users') }}">
       <span class="side-rail-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.5"/><path d="M5 19a7 7 0 0114 0"/></svg>
       </span>
-      <span class="side-rail-label">회원</span>
+      <span class="side-rail-label">{{ t('users') }}</span>
     </a>
     <a href="{{ url_for('admin.dashboard') }}#llm-settings" class="side-rail-item" title="API 키">
       <span class="side-rail-icon" aria-hidden="true">
@@ -83,11 +80,11 @@
     {% endif %}
   </nav>
   <div class="side-rail-footer">
-    <a href="{{ url_for('auth.logout') }}" class="side-rail-item" title="로그아웃">
+    <a href="{{ url_for('auth.logout') }}" class="side-rail-item" title="{{ t('logout') }}">
       <span class="side-rail-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 7V5a2 2 0 012-2h7v18h-7a2 2 0 01-2-2v-2"/><path d="M15 12H4m0 0l3-3m-3 3l3 3"/></svg>
       </span>
-      <span class="side-rail-label">나가기</span>
+      <span class="side-rail-label">{{ t('logout') }}</span>
     </a>
   </div>
 </aside>
@@ -99,8 +96,8 @@
     <div class="d-flex align-items-center gap-2">
       <span class="brand-mark d-lg-none">{{ brand }}</span>
       <div>
-        <div class="top-bar-title">{% block page_title %}경매시세분석{% endblock %}</div>
-        <div class="small text-muted d-none d-md-block">{{ config.APP_NAME }} · 도매 시세</div>
+        <div class="top-bar-title">{% block page_title %}{{ t('page_title_default') }}{% endblock %}</div>
+        <div class="small text-muted d-none d-md-block">{{ config.APP_NAME }} · {{ t('wholesale_market_short') }}</div>
       </div>
     </div>
     <div class="d-flex align-items-center gap-2">
@@ -131,13 +128,13 @@
 </div>
 
 {% if current_user.is_authenticated %}
-<nav class="mobile-bottom-nav d-lg-none" aria-label="모바일 메뉴">
-  <a href="{{ url_for('market.index') }}" class="mobile-nav-item {{ 'active' if ep and ep.startswith('market.') }}">시세</a>
+<nav class="mobile-bottom-nav d-lg-none" aria-label="{{ t('mobile_menu') }}">
+  <a href="{{ url_for('market.index') }}" class="mobile-nav-item {{ 'active' if ep and ep.startswith('market.') }}">{{ t('nav_market') }}</a>
   {% if current_user.is_admin %}
-  <a href="{{ url_for('admin.dashboard') }}" class="mobile-nav-item {{ 'active' if ep == 'admin.dashboard' }}">관리</a>
-  <a href="{{ url_for('admin.users') }}" class="mobile-nav-item {{ 'active' if ep == 'admin.users' }}">회원</a>
+  <a href="{{ url_for('admin.dashboard') }}" class="mobile-nav-item {{ 'active' if ep == 'admin.dashboard' }}">{{ t('admin') }}</a>
+  <a href="{{ url_for('admin.users') }}" class="mobile-nav-item {{ 'active' if ep == 'admin.users' }}">{{ t('users') }}</a>
   {% endif %}
-  <a href="{{ url_for('auth.logout') }}" class="mobile-nav-item">나가기</a>
+  <a href="{{ url_for('auth.logout') }}" class="mobile-nav-item">{{ t('logout') }}</a>
 </nav>
 {% endif %}
 

@@ -38,7 +38,7 @@ def test_report_graceful_failure(app, db, monkeypatch):
 
 
 def test_translate_passthrough_and_cache(app, db):
-    # No DEEPL key → passthrough, but cached row still created.
+    # No GEMINI_API_KEY configured in tests → passthrough, but cached row still created.
     out = translate("사고 없음", "en")
     assert out == "사고 없음"
     from app.models import TranslationCache
@@ -48,3 +48,10 @@ def test_translate_passthrough_and_cache(app, db):
 def test_load_pack():
     assert i18n_translate.load_pack("ja")["login"] == "ログイン"
     assert i18n_translate.load_pack("xx")  # falls back to ko
+
+
+def test_glossary_pairs_reuse_static_ui_dictionary():
+    pairs = i18n_translate._glossary_pairs("en")
+    assert ("로그인", "Login") in pairs
+    pairs_ja = i18n_translate._glossary_pairs("ja")
+    assert ("로그인", "ログイン") in pairs_ja

@@ -1839,3 +1839,30 @@ body.app-body {
 .bp-samples-modal .market-scroll-panel {
     max-height: min(60vh, 36rem);
 }
+
+/* ── i18n layout auto-adjustment ──
+   English/Japanese UI strings are longer or shorter than Korean; these rules
+   keep nav labels, matrix headers and cards from overflowing after a language switch. */
+html:not([lang="ko"]) .side-rail-label {
+    font-size: .62rem;
+    letter-spacing: -.01em;
+}
+
+html:not([lang="ko"]) .mobile-nav-item {
+    font-size: .6rem;
+    white-space: nowrap;
+}
+
+html:not([lang="ko"]) .top-bar-title,
+html:not([lang="ko"]) .page-title {
+    white-space: nowrap;
+}
+
+html:not([lang="ko"]) .market-samples-table th:first-child,
+html:not([lang="ko"]) .market-samples-table td:first-child {
+    min-width: 16rem;
+}
+
+html:not([lang="ko"]) .btn {
+    word-break: break-word;
+}

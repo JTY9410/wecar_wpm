@@ -25,6 +25,14 @@ docker compose up -d --build
 
 `제조사|모델|상세모델|등급|상세등급|년식|유종|AWD`
 
+## 다국어 (ko/en/ja)
+
+- 상단바 언어 스위처(KO/EN/JA)로 전환, 화면 레이아웃(사이드 레일·모바일 네비·버튼)은 언어별 자동 조정된다.
+- 고정 UI 문구: `app/i18n/{ko,en,ja}.json` (사람이 검수한 번역, 정적 사전).
+- 자유 텍스트(사고내역 등): `app/services/i18n_translate.py` — Gemini(`GEMINI_API_KEY`)로 번역 후 `TranslationCache`에 캐시.
+  같은 용어는 정적 사전을 용어집으로, 과거 번역은 few-shot 예시로 프롬프트에 포함해 일관된 톤을 유지한다.
+  키 미설정 시 원문 그대로 표시(그레이스풀 패스스루).
+
 ## Wholesale API (car2 연동 — 추후)
 
 car2에서 `WPM_INTEGRATION_ENABLED=1` 로 활성화 후 사용:
