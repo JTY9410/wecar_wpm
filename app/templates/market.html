@@ -10,7 +10,7 @@
     <div class="col-6 col-md">
       <label class="form-label small mb-1">{{ i18n.maker }}</label>
       <select id="f-maker" class="form-select"><option value="">—</option>
-        {% for m in makers %}<option>{{ m }}</option>{% endfor %}</select>
+        {% for m in makers %}<option value="{{ m.value }}">{{ m.label }}</option>{% endfor %}</select>
     </div>
     <div class="col-6 col-md">
       <label class="form-label small mb-1">{{ i18n.model }}</label>
@@ -39,7 +39,10 @@
     <div class="col-6 col-md">
       <label class="form-label small mb-1">{{ i18n.awd }}</label>
       <select id="f-awd" class="form-select">
-        <option value="">—</option><option>AWD</option><option>2WD</option><option>미확인</option>
+        <option value="">—</option>
+        <option value="AWD">AWD</option>
+        <option value="2WD">2WD</option>
+        <option value="미확인">{{ '미확인'|tr }}</option>
       </select>
     </div>
     <div class="col-auto d-flex gap-2">
@@ -175,5 +178,5 @@
     </div>
   </div>
 </div>
-<script src="{{ url_for('static', filename='js/market.js') }}?v=5"></script>
+<script src="{{ url_for('static', filename='js/market.js') }}?v=6"></script>
 {% endblock %}

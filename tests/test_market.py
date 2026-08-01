@@ -13,12 +13,24 @@ def _load(app, tmp_path):
 def test_cascade_and_grid(app, db, tmp_path):
     _load(app, tmp_path)
     makers = market_query.makers()
-    assert "현대" in makers
+    assert any(m["value"] == "현대" for m in makers)
     models = market_query.models("현대")
-    assert models
+    assert models and all("value" in m and "label" in m for m in models)
     rows = market_query.grid(maker="현대")
     assert rows
     assert "km_bin" in rows[0] and "mom_pct" in rows[0]
+    assert rows[0]["maker"] == "현대"
+
+
+def test_cascade_and_grid_translated_labels(app, db, tmp_path):
+    _load(app, tmp_path)
+    makers = market_query.makers(lang="en")
+    hyundai = next(m for m in makers if m["value"] == "현대")
+    assert hyundai["label"] == "Hyundai"
+    rows = market_query.grid(maker="현대", lang="en")
+    assert rows[0]["maker"] == "현대"
+    assert rows[0]["maker_label"] == "Hyundai"
+    assert rows[0]["model_name_label"]  # translated display
 
 
 def test_grid_api_requires_login(client):

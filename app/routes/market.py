@@ -18,25 +18,27 @@ def _lang():
 @market_bp.route("/")
 @login_required
 def index():
+    lang = _lang()
     return render_template(
         "market.html",
-        makers=market_query.makers(),
-        i18n=load_pack(_lang()),
-        lang=_lang(),
+        makers=market_query.makers(lang=lang),
+        i18n=load_pack(lang),
+        lang=lang,
     )
 
 
 @market_bp.route("/api/cascade/models")
 @login_required
 def cascade_models():
-    return jsonify(market_query.models(request.args.get("maker", "")))
+    return jsonify(market_query.models(request.args.get("maker", ""), lang=_lang()))
 
 
 @market_bp.route("/api/cascade/car_names")
 @login_required
 def cascade_car_names():
     return jsonify(market_query.mdetails(
-        request.args.get("maker", ""), request.args.get("model_name", "")))
+        request.args.get("maker", ""), request.args.get("model_name", ""),
+        lang=_lang()))
 
 
 @market_bp.route("/api/cascade/grades")
@@ -46,6 +48,7 @@ def cascade_grades():
         request.args.get("maker", ""),
         request.args.get("model_name"),
         request.args.get("mdetail_name"),
+        lang=_lang(),
     ))
 
 
@@ -57,6 +60,7 @@ def cascade_gdetails():
         request.args.get("model_name"),
         request.args.get("mdetail_name"),
         request.args.get("grade_name"),
+        lang=_lang(),
     ))
 
 
@@ -71,7 +75,7 @@ def cascade_years():
 @market_bp.route("/api/cascade/fuels")
 @login_required
 def cascade_fuels():
-    return jsonify(market_query.fuels(request.args.get("maker")))
+    return jsonify(market_query.fuels(request.args.get("maker"), lang=_lang()))
 
 
 @market_bp.route("/api/grid")

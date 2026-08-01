@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 _I18N_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "i18n")
 _LANG_NAMES = {"en": "English", "ja": "Japanese"}
+_vehicle_glossary_cache: dict[str, dict] = {}
 
 
 def load_pack(lang):
@@ -34,14 +35,42 @@ def load_pack(lang):
         return json.load(fh)
 
 
+def load_vehicle_glossary(lang):
+    """제조사·모델·등급 등 차량 계층 용어집 (ko → en/ja)."""
+    if lang not in _LANG_NAMES:
+        return {}
+    if lang in _vehicle_glossary_cache:
+        return _vehicle_glossary_cache[lang]
+    path = os.path.join(_I18N_DIR, f"vehicle_{lang}.json")
+    if not os.path.exists(path):
+        _vehicle_glossary_cache[lang] = {}
+        return {}
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+    _vehicle_glossary_cache[lang] = data
+    return data
+
+
 def _static_lookup(text, lang):
-    """정적 UI 사전에 이미 있는 값이면 검수된 번역을 그대로 재사용."""
+    """정적 UI 사전·차량 용어집에 이미 있는 값이면 검수된 번역을 그대로 재사용."""
+    vehicle = load_vehicle_glossary(lang).get(text)
+    if vehicle:
+        return vehicle
     ko_pack = load_pack("ko")
     for key, ko_value in ko_pack.items():
         if ko_value == text:
             target = load_pack(lang).get(key)
             if target:
                 return target
+    # 복합 문자열(예: "현대 그랜저HG 300")은 용어집 토큰을 순서대로 치환
+    glossary = load_vehicle_glossary(lang)
+    if glossary and any(token in text for token in glossary):
+        out = text
+        for src, dst in sorted(glossary.items(), key=lambda kv: len(kv[0]), reverse=True):
+            if src and src in out:
+                out = out.replace(src, dst)
+        if out != text:
+            return out
     return None
 
 
@@ -49,15 +78,16 @@ def _hash(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def _glossary_pairs(lang, limit=15):
-    """정적 UI 사전에서 용어집 예시 추출 — 도메인 용어 일관성 유지."""
+def _glossary_pairs(lang, limit=20):
+    """UI 사전 + 차량 용어집에서 few-shot 예시 추출 — 제조사/모델/등급 일관성 유지."""
+    pairs = list(load_vehicle_glossary(lang).items())[:12]
     ko_pack = load_pack("ko")
     target_pack = load_pack(lang)
-    pairs = [
-        (ko_pack[k], target_pack[k])
-        for k in ko_pack
-        if k in target_pack and ko_pack[k] and ko_pack[k] != target_pack[k]
-    ]
+    for k in ko_pack:
+        if k in target_pack and ko_pack[k] and ko_pack[k] != target_pack[k]:
+            pairs.append((ko_pack[k], target_pack[k]))
+        if len(pairs) >= limit:
+            break
     return pairs[:limit]
 
 
@@ -86,9 +116,11 @@ def _build_prompt(text, lang, draft=None):
     if draft:
         task = (
             f"A Korean used-car wholesale-auction text was machine-translated into {target} below. "
-            f"Polish it into natural, concise {target} suitable for a UI or market report, "
-            f"fixing anything left untranslated or awkward. "
-            f"Keep numbers, model names, and proper nouns unchanged. "
+            f"Polish it into natural, concise {target} suitable for a UI or market report. "
+            f"Manufacturer, model, trim/grade, and detail names MUST be translated into common "
+            f"{target} equivalents (e.g. 현대→Hyundai/ヒュンダイ, 그랜저→Grandeur/グレンジャー). "
+            f"Do not leave Korean Hangul in the result when a natural {target} form exists. "
+            f"Keep pure numbers and Latin alphanumeric codes as-is. "
             f"Return ONLY the final text, with no quotes or extra notes.\n\n"
         )
         body = f"Korean source: {text}\n{target} draft: {draft}"
@@ -96,7 +128,10 @@ def _build_prompt(text, lang, draft=None):
         task = (
             f"Translate the following Korean used-car wholesale-auction text into "
             f"natural, concise {target} suitable for a UI or market report. "
-            f"Keep numbers, model names, and proper nouns unchanged. "
+            f"Manufacturer, model, trim/grade, and detail names MUST be translated into common "
+            f"{target} equivalents (e.g. 현대→Hyundai/ヒュンダイ, 그랜저→Grandeur/グレンジャー). "
+            f"Do not leave Korean Hangul in the result when a natural {target} form exists. "
+            f"Keep pure numbers and Latin alphanumeric codes as-is. "
             f"Return ONLY the translation, with no quotes or extra notes.\n\n"
         )
         body = f"Text: {text}"

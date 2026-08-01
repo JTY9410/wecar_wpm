@@ -31,11 +31,23 @@
       const r = await fetch(url);
       if (!r.ok) throw new Error("fail");
       const data = await r.json();
-      sel.innerHTML = `<option value="">—</option>` + data.map((v) => `<option>${esc(v)}</option>`).join("");
+      // cascade API: [{value, label}] — value는 한국어 원문(필터용), label은 번역 표시
+      sel.innerHTML = `<option value="">—</option>` + data.map((v) => {
+        if (v && typeof v === "object") {
+          return `<option value="${esc(v.value)}">${esc(v.label != null ? v.label : v.value)}</option>`;
+        }
+        return `<option value="${esc(v)}">${esc(v)}</option>`;
+      }).join("");
       sel.disabled = false;
     } catch (e) {
       sel.innerHTML = `<option value="">—</option>`;
     }
+  }
+
+  function lbl(row, key) {
+    return row[`${key}_label`] != null && row[`${key}_label`] !== ""
+      ? row[`${key}_label`]
+      : row[key];
   }
 
   function filters() {
@@ -131,7 +143,8 @@
       grade_name: x.grade_name, gdetail_name: x.gdetail_name,
       car_year: x.car_year, km_bin: x.km_bin, fuel: x.fuel, awd: x.awd,
       accident_free: x.is_accident_free_flag ? "1" : "0",
-      title: [x.maker, x.model_name, x.gdetail_name, x.car_year, x.km_bin].filter(Boolean).join(" · "),
+      title: [lbl(x, "maker"), lbl(x, "model_name"), lbl(x, "gdetail_name"), x.car_year, x.km_bin]
+        .filter(Boolean).join(" · "),
     };
     return `<div class="btn-group btn-group-sm flex-wrap">
       <button type="button" class="btn btn-outline-primary sample-btn" ${dataAttrs(payload)}>${esc(t("samples"))}</button>
@@ -160,12 +173,12 @@
         return;
       }
       g("grid").innerHTML = rows.map((x) => `<tr>
-        <td>${esc(x.maker)}</td>
-        <td>${esc(x.model_name)}</td>
-        <td>${esc(x.mdetail_name)}</td>
-        <td>${esc(x.grade_name)}</td>
-        <td class="small">${esc(x.gdetail_name)}</td>
-        <td>${esc(x.fuel)}</td>
+        <td>${esc(lbl(x, "maker"))}</td>
+        <td>${esc(lbl(x, "model_name"))}</td>
+        <td>${esc(lbl(x, "mdetail_name"))}</td>
+        <td>${esc(lbl(x, "grade_name"))}</td>
+        <td class="small">${esc(lbl(x, "gdetail_name"))}</td>
+        <td>${esc(lbl(x, "fuel"))}</td>
         <td>${esc(x.awd)}</td>
         <td>${esc(x.is_accident_free)}</td>
         <td>${esc(x.car_year)}</td>

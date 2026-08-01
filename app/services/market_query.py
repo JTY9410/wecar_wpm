@@ -33,37 +33,49 @@ def _accident_label(is_free, lang="ko"):
     return pack.get("accident_damaged", "사고차")
 
 
-def makers():
+def _labeled(values, lang="ko"):
+    """필터 value는 한국어 원문 유지, label만 번역 — EN/JA UI에서도 DB 조회가 깨지지 않게."""
+    out = []
+    for v in values:
+        if v is None or v == "":
+            continue
+        cleaned = _clean(v)
+        label = translate(cleaned, lang) if cleaned and lang != "ko" else cleaned
+        out.append({"value": cleaned, "label": label})
+    return out
+
+
+def makers(lang="ko"):
     rows = db.session.query(distinct(MarketSummary.maker)).filter(
         MarketSummary.maker.isnot(None)).order_by(MarketSummary.maker).all()
-    return [_clean(r[0]) for r in rows]
+    return _labeled([r[0] for r in rows], lang)
 
 
-def models(maker):
+def models(maker, lang="ko"):
     rows = db.session.query(distinct(MarketSummary.model_name)).filter(
         MarketSummary.maker == maker,
         MarketSummary.model_name.isnot(None)).order_by(MarketSummary.model_name).all()
-    return [_clean(r[0]) for r in rows]
+    return _labeled([r[0] for r in rows], lang)
 
 
-def mdetails(maker, model_name):
+def mdetails(maker, model_name, lang="ko"):
     rows = db.session.query(distinct(MarketSummary.mdetail_name)).filter(
         MarketSummary.maker == maker, MarketSummary.model_name == model_name,
         MarketSummary.mdetail_name.isnot(None)).order_by(MarketSummary.mdetail_name).all()
-    return [_clean(r[0]) for r in rows]
+    return _labeled([r[0] for r in rows], lang)
 
 
-def grades(maker, model_name=None, mdetail=None):
+def grades(maker, model_name=None, mdetail=None, lang="ko"):
     q = db.session.query(distinct(MarketSummary.grade_name)).filter(
         MarketSummary.maker == maker, MarketSummary.grade_name.isnot(None))
     if model_name:
         q = q.filter(MarketSummary.model_name == model_name)
     if mdetail:
         q = q.filter(MarketSummary.mdetail_name == mdetail)
-    return [_clean(r[0]) for r in q.order_by(MarketSummary.grade_name).all()]
+    return _labeled([r[0] for r in q.order_by(MarketSummary.grade_name).all()], lang)
 
 
-def gdetails(maker, model_name=None, mdetail=None, grade=None):
+def gdetails(maker, model_name=None, mdetail=None, grade=None, lang="ko"):
     q = db.session.query(distinct(MarketSummary.gdetail_name)).filter(
         MarketSummary.maker == maker, MarketSummary.gdetail_name.isnot(None))
     if model_name:
@@ -72,7 +84,7 @@ def gdetails(maker, model_name=None, mdetail=None, grade=None):
         q = q.filter(MarketSummary.mdetail_name == mdetail)
     if grade:
         q = q.filter(MarketSummary.grade_name == grade)
-    return [_clean(r[0]) for r in q.order_by(MarketSummary.gdetail_name).all()]
+    return _labeled([r[0] for r in q.order_by(MarketSummary.gdetail_name).all()], lang)
 
 
 def years(maker, model_name=None, mdetail=None):
@@ -85,11 +97,11 @@ def years(maker, model_name=None, mdetail=None):
     return [r[0] for r in q.order_by(MarketSummary.car_year.desc()).all()]
 
 
-def fuels(maker=None):
+def fuels(maker=None, lang="ko"):
     q = db.session.query(distinct(MarketSummary.fuel)).filter(MarketSummary.fuel.isnot(None))
     if maker:
         q = q.filter(MarketSummary.maker == maker)
-    return [_clean(r[0]) for r in q.order_by(MarketSummary.fuel).all()]
+    return _labeled([r[0] for r in q.order_by(MarketSummary.fuel).all()], lang)
 
 
 def _filter_summary(q, maker=None, model_name=None, mdetail_name=None, grade_name=None,
@@ -134,19 +146,35 @@ def grid(maker=None, model_name=None, mdetail_name=None, car_name=None,
     def _tr(value):
         return translate(value, lang) if value and lang != "ko" else value
 
-    return [{
-        "car_code": _clean(r.car_code), "maker": _tr(_clean(r.maker)),
-        "model_name": _tr(_clean(r.model_name)), "mdetail_name": _tr(_clean(r.mdetail_name)),
-        "grade_name": _tr(_clean(r.grade_name)), "gdetail_name": _tr(_clean(r.gdetail_name)),
-        "car_name": _tr(_clean(r.car_name)), "car_year": r.car_year,
-        "fuel": _tr(_clean(r.fuel)), "awd": _clean(r.awd),
-        "imported": _clean(r.imported),
-        "is_accident_free": _accident_label(r.is_accident_free, lang),
-        "is_accident_free_flag": bool(r.is_accident_free),
-        "km_bin": _clean(r.km_bin), "start_avg": r.start_avg, "hammer_avg": r.hammer_avg,
-        "wow_pct": r.mom_pct, "mom_pct": r.mom_pct,  # mom_pct=전주대비(%) alias
-        "sample_count": r.sample_count, "note": _tr(_clean(r.note)),
-    } for r in rows]
+    # value 필드는 한국어 원문(후속 필터/샘플 API용), *_label 은 화면 표시용 번역.
+    result = []
+    for r in rows:
+        maker = _clean(r.maker)
+        model_name = _clean(r.model_name)
+        mdetail_name = _clean(r.mdetail_name)
+        grade_name = _clean(r.grade_name)
+        gdetail_name = _clean(r.gdetail_name)
+        car_name = _clean(r.car_name)
+        fuel = _clean(r.fuel)
+        result.append({
+            "car_code": _clean(r.car_code),
+            "maker": maker, "maker_label": _tr(maker),
+            "model_name": model_name, "model_name_label": _tr(model_name),
+            "mdetail_name": mdetail_name, "mdetail_name_label": _tr(mdetail_name),
+            "grade_name": grade_name, "grade_name_label": _tr(grade_name),
+            "gdetail_name": gdetail_name, "gdetail_name_label": _tr(gdetail_name),
+            "car_name": car_name, "car_name_label": _tr(car_name),
+            "car_year": r.car_year,
+            "fuel": fuel, "fuel_label": _tr(fuel),
+            "awd": _clean(r.awd),
+            "imported": _clean(r.imported),
+            "is_accident_free": _accident_label(r.is_accident_free, lang),
+            "is_accident_free_flag": bool(r.is_accident_free),
+            "km_bin": _clean(r.km_bin), "start_avg": r.start_avg, "hammer_avg": r.hammer_avg,
+            "wow_pct": r.mom_pct, "mom_pct": r.mom_pct,  # mom_pct=전주대비(%) alias
+            "sample_count": r.sample_count, "note": _tr(_clean(r.note)),
+        })
+    return result
 
 
 def matrix(maker=None, model_name=None, mdetail_name=None, grade_name=None,
@@ -295,8 +323,8 @@ def samples(maker=None, model_name=None, mdetail_name=None, grade_name=None,
 
 
 # backward-compat aliases used by market routes
-def car_names(maker, model_name):
-    return mdetails(maker, model_name)
+def car_names(maker, model_name, lang="ko"):
+    return mdetails(maker, model_name, lang=lang)
 
 
 def price_trend(maker=None, model_name=None, mdetail_name=None, grade_name=None,
