@@ -62,13 +62,17 @@ def _glossary_pairs(lang, limit=15):
 
 
 def _cache_examples(lang, limit=5):
-    """과거 성공 번역 캐시를 few-shot 예시로 재사용 — 톤 일관성 학습 효과."""
+    """과거 성공 번역 캐시를 few-shot 예시로 재사용 — 톤 일관성 학습 효과.
+
+    관리자가 검수(reviewed=True)한 번역을 최우선으로 사용해, 한 번 교정된
+    표현은 이후 모든 번역에 반영되는 자체 학습(self-learning) 효과를 낸다.
+    """
     rows = (
         TranslationCache.query.filter(
             TranslationCache.lang == lang,
             TranslationCache.source_text != TranslationCache.translated_text,
         )
-        .order_by(TranslationCache.id.desc())
+        .order_by(TranslationCache.reviewed.desc(), TranslationCache.id.desc())
         .limit(limit)
         .all()
     )

@@ -3,13 +3,13 @@ import re
 import uuid
 from datetime import datetime
 
-from flask import (Blueprint, current_app, jsonify, render_template, request)
+from flask import (Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for)
 from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
 
 from app.decorators import admin_required
 from app.extensions import db
-from app.models import AuctionRecord, LLMConfig, SyncLog, UploadHistory
+from app.models import AuctionRecord, LLMConfig, SyncLog, TranslationCache, UploadHistory
 from app.services import google_translate, market_query, rag_store
 from app.services.excel_pipeline import ExcelValidationError, process_weekly_upload
 from app.services.llm_hub import (
@@ -218,6 +218,77 @@ def translate_settings():
         return jsonify({"ok": False, "error": "API 키를 입력하세요."}), 400
     google_translate.save_api_key(api_key=api_key, clear_key=clear_key)
     return jsonify({"ok": True, "message": "Google 번역 API 키가 저장되었습니다."})
+
+
+@admin_bp.route("/translate/test", methods=["POST"])
+@login_required
+@admin_required
+def translate_test():
+    """Google 번역 API 연동 상태를 실제로 호출해 확인 (연결 테스트 버튼)."""
+    result = google_translate.test_connection()
+    db.session.add(SyncLog(
+        sync_type="GOOGLE_TRANSLATE_TEST",
+        status="SUCCESS" if result.get("ok") else "FAIL",
+        records_processed=1 if result.get("ok") else 0,
+        error_message=None if result.get("ok") else result.get("error"),
+    ))
+    db.session.commit()
+    return jsonify(result), (200 if result.get("ok") else 400)
+
+
+@admin_bp.route("/translations")
+@login_required
+@admin_required
+def translations():
+    """번역 캐시 관리 — 오역을 교정하고 검수 표시해 자체 학습(few-shot)에 반영."""
+    lang = request.args.get("lang", "en")
+    if lang not in ("en", "ja"):
+        lang = "en"
+    q = (request.args.get("q") or "").strip()
+    page = max(request.args.get("page", 1, type=int), 1)
+
+    query = TranslationCache.query.filter_by(lang=lang)
+    if q:
+        query = query.filter(
+            db.or_(
+                TranslationCache.source_text.ilike(f"%{q}%"),
+                TranslationCache.translated_text.ilike(f"%{q}%"),
+            )
+        )
+    pagination = query.order_by(TranslationCache.reviewed.asc(), TranslationCache.id.desc()).paginate(
+        page=page, per_page=30, error_out=False
+    )
+    return render_template(
+        "admin_translations.html",
+        lang=lang,
+        q=q,
+        pagination=pagination,
+        stats={
+            "total": TranslationCache.query.filter_by(lang=lang).count(),
+            "reviewed": TranslationCache.query.filter_by(lang=lang, reviewed=True).count(),
+        },
+    )
+
+
+@admin_bp.route("/translations/<int:entry_id>", methods=["POST"])
+@login_required
+@admin_required
+def update_translation(entry_id):
+    entry = TranslationCache.query.get_or_404(entry_id)
+    action = request.form.get("action", "save")
+    if action == "delete":
+        db.session.delete(entry)
+        db.session.commit()
+        flash("번역 캐시 항목을 삭제했습니다. 다음 접속 시 다시 번역됩니다.", "success")
+        return redirect(url_for("admin.translations", lang=entry.lang))
+
+    new_text = request.form.get("translated_text", "").strip()
+    if new_text:
+        entry.translated_text = new_text
+    entry.reviewed = request.form.get("reviewed") == "on"
+    db.session.commit()
+    flash("번역이 저장되었습니다." + (" (검수 완료 — 학습 예시로 우선 사용됩니다)" if entry.reviewed else ""), "success")
+    return redirect(url_for("admin.translations", lang=entry.lang, page=request.form.get("page", 1)))
 
 
 @admin_bp.route("/llm/test", methods=["POST"])

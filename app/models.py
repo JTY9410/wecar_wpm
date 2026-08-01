@@ -200,6 +200,8 @@ class SyncLog(db.Model):
 
 
 class TranslationCache(db.Model):
+    """번역 캐시. 관리자가 오역을 수정하고 reviewed=True로 표시하면, 이후 번역 시
+    few-shot 예시에서 최우선으로 사용되어 자체 학습(self-learning) 효과를 낸다."""
     __tablename__ = "translation_cache"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -207,6 +209,9 @@ class TranslationCache(db.Model):
     source_text = db.Column(db.Text)
     lang = db.Column(db.String(5))
     translated_text = db.Column(db.Text)
+    reviewed = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=utcnow)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
     __table_args__ = (db.UniqueConstraint("source_hash", "lang", name="uq_trans"),)
 
 

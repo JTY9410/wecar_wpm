@@ -32,6 +32,8 @@
   "samples_empty": "No auction records for this filter.",
   "samples_count": "{n} records",
   "car_name": "Vehicle",
+  "km": "Mileage",
+  "region": "Region",
   "start_price": "Start",
   "hammer_price": "Hammer",
   "imported": "Domestic/Export",

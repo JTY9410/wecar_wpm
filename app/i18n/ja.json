@@ -32,6 +32,8 @@
   "samples_empty": "該当条件の落札データがありません。",
   "samples_count": "{n}件",
   "car_name": "車両名",
+  "km": "走行距離",
+  "region": "地域",
   "start_price": "開始価格",
   "hammer_price": "落札価格",
   "imported": "内需/輸出",

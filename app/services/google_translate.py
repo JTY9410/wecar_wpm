@@ -61,3 +61,29 @@ def translate_text(text: str, target_lang: str, source_lang: str = "ko") -> str 
     except Exception as exc:
         logger.warning("Google Translate failed: %s", exc)
         return None
+
+
+def test_connection() -> dict:
+    """관리자 설정 화면의 '연결 테스트' 버튼용 — 실제 API 호출로 키 유효성을 확인."""
+    if not is_configured():
+        return {"ok": False, "error": "API 키가 설정되지 않았습니다."}
+    sample = "연결 테스트"
+    try:
+        resp = requests.post(
+            _ENDPOINT,
+            params={"key": resolve_api_key()},
+            json={"q": sample, "target": "en", "source": "ko", "format": "text"},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            detail = ""
+            try:
+                detail = resp.json().get("error", {}).get("message", "")
+            except Exception:
+                pass
+            return {"ok": False, "error": detail or f"HTTP {resp.status_code}"}
+        translated = resp.json()["data"]["translations"][0]["translatedText"]
+        return {"ok": True, "sample": sample, "translated": translated}
+    except Exception as exc:
+        logger.warning("Google Translate connection test failed: %s", exc)
+        return {"ok": False, "error": str(exc)}

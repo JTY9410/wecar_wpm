@@ -32,6 +32,8 @@
   "samples_empty": "해당 조건의 낙찰 데이터가 없습니다.",
   "samples_count": "{n}건",
   "car_name": "차량명",
+  "km": "주행거리",
+  "region": "지역",
   "start_price": "시작가",
   "hammer_price": "낙찰가",
   "imported": "내수/수출",

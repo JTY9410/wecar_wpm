@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mb-4">
+    <a href="{{ url_for('admin.dashboard') }}" class="text-muted small">← 대시보드</a>
+    <h2 class="mb-1 mt-2">번역 캐시 관리</h2>
+    <p class="text-muted mb-0">
+        AI가 번역한 결과를 확인하고 필요하면 직접 교정하세요. <strong>검수 완료</strong>로 표시하면
+        이후 같은 표현을 번역할 때 최우선 예시로 학습되어(자체 학습) 품질이 계속 좋아집니다.
+    </p>
+</div>
+
+<ul class="nav nav-pills mb-3">
+    <li class="nav-item"><a class="nav-link {{ 'active' if lang == 'en' }}" href="{{ url_for('admin.translations', lang='en', q=q) }}">EN</a></li>
+    <li class="nav-item"><a class="nav-link {{ 'active' if lang == 'ja' }}" href="{{ url_for('admin.translations', lang='ja', q=q) }}">JA</a></li>
+</ul>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3">
+        <div class="glass-card p-3">
+            <p class="text-muted small mb-1">전체 캐시</p>
+            <p class="h4 mb-0">{{ "{:,}".format(stats.total) }}</p>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="glass-card p-3">
+            <p class="text-muted small mb-1">검수 완료 (학습 예시)</p>
+            <p class="h4 mb-0 text-success">{{ "{:,}".format(stats.reviewed) }}</p>
+        </div>
+    </div>
+</div>
+
+<form method="GET" class="mb-3 d-flex gap-2 flex-wrap">
+    <input type="hidden" name="lang" value="{{ lang }}">
+    <input type="text" name="q" class="form-control" style="max-width:20rem;" placeholder="검색 (원문/번역문)" value="{{ q }}">
+    <button type="submit" class="btn btn-outline-primary">검색</button>
+    {% if q %}<a href="{{ url_for('admin.translations', lang=lang) }}" class="btn btn-outline-secondary">초기화</a>{% endif %}
+</form>
+
+<div class="mobile-data-cards">
+    {% for e in pagination.items %}
+    <article class="glass-card p-3 mb-2 {{ 'border border-success' if e.reviewed }}">
+        <form method="POST" action="{{ url_for('admin.update_translation', entry_id=e.id) }}" class="d-flex flex-column gap-2">
+            <input type="hidden" name="page" value="{{ pagination.page }}">
+            <div class="small text-muted">원문 (KO)</div>
+            <div class="fw-semibold">{{ e.source_text }}</div>
+            <div class="small text-muted">번역 ({{ lang|upper }})</div>
+            <textarea name="translated_text" class="form-control form-control-sm" rows="2">{{ e.translated_text }}</textarea>
+            <div class="d-flex justify-content-between align-items-center gap-2">
+                <div class="form-check mb-0">
+                    <input class="form-check-input" type="checkbox" name="reviewed" id="rev{{ e.id }}" {{ 'checked' if e.reviewed }}>
+                    <label class="form-check-label small" for="rev{{ e.id }}">검수 완료</label>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="submit" name="action" value="save" class="btn btn-sm btn-primary">저장</button>
+                    <button type="submit" name="action" value="delete" class="btn btn-sm btn-outline-danger" onclick="return confirm('삭제하면 다음 접속 시 다시 번역됩니다. 삭제할까요?')">삭제</button>
+                </div>
+            </div>
+        </form>
+    </article>
+    {% else %}
+    <div class="glass-card p-5 text-center text-muted">캐시된 번역이 없습니다.</div>
+    {% endfor %}
+</div>
+
+{% if pagination.pages > 1 %}
+<nav class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+    <span class="small text-muted">{{ pagination.page }} / {{ pagination.pages }} 페이지 (총 {{ "{:,}".format(pagination.total) }}건)</span>
+    <ul class="pagination pagination-sm mb-0">
+        {% if pagination.has_prev %}
+        <li class="page-item"><a class="page-link" href="{{ url_for('admin.translations', lang=lang, q=q, page=pagination.page-1) }}">이전</a></li>
+        {% endif %}
+        {% if pagination.has_next %}
+        <li class="page-item"><a class="page-link" href="{{ url_for('admin.translations', lang=lang, q=q, page=pagination.page+1) }}">다음</a></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}
