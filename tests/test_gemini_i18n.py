@@ -55,3 +55,32 @@ def test_glossary_pairs_reuse_static_ui_dictionary():
     assert ("로그인", "Login") in pairs
     pairs_ja = i18n_translate._glossary_pairs("ja")
     assert ("로그인", "ログイン") in pairs_ja
+
+
+def test_static_lookup_reused_for_known_ui_values(app, db):
+    """정적 사전에 있는 값(예: '로그인')은 API 호출 없이 검수된 번역을 그대로 사용."""
+    assert translate("로그인", "en") == "Login"
+    from app.models import TranslationCache
+
+    assert TranslationCache.query.filter_by(lang="en").count() == 0
+
+
+def test_translate_uses_google_draft_when_configured(app, db, monkeypatch):
+    """Google 번역 키만 있으면 초벌 번역을 그대로 사용(Gemini 미설정 시)."""
+    monkeypatch.setattr(
+        i18n_translate.google_translate, "translate_text",
+        lambda text, lang, source_lang="ko": "Google Draft"
+    )
+    out = translate("현대 그랜저", "en")
+    assert out == "Google Draft"
+
+
+def test_translate_polishes_google_draft_with_gemini(app, db, monkeypatch):
+    """Google 초벌 + Gemini 윤문 조합 — Gemini가 있으면 다듬은 결과를 사용."""
+    monkeypatch.setattr(
+        i18n_translate.google_translate, "translate_text",
+        lambda text, lang, source_lang="ko": "Google Draft"
+    )
+    monkeypatch.setattr(i18n_translate, "_call_gemini", lambda text, lang, draft=None: "Polished Result")
+    out = translate("현대 그랜저", "en")
+    assert out == "Polished Result"

@@ -41,6 +41,16 @@ def create_app(config_class=Config):
 
         return {"i18n": pack, "lang": lang, "t": t, "supported_langs": app.config.get("SUPPORTED_LANGS")}
 
+    from app.services.i18n_translate import translate as _translate_text
+
+    @app.template_filter("tr")
+    def translate_filter(text):
+        """차명·지역·색상 등 자유 텍스트를 현재 언어로 번역(정적 사전 우선, 없으면 Google/Gemini)."""
+        lang = session.get("lang", "ko")
+        if lang not in app.config.get("SUPPORTED_LANGS", ["ko", "en", "ja"]):
+            lang = "ko"
+        return _translate_text(text, lang)
+
     from app.routes.auth import auth_bp
     from app.routes.market import market_bp
     from app.routes.listings import listings_bp

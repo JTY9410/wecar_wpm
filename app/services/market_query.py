@@ -123,18 +123,22 @@ def grid(maker=None, model_name=None, mdetail_name=None, car_name=None,
         MarketSummary.hammer_avg.isnot(None),
         MarketSummary.hammer_avg > 0,
     ).order_by(MarketSummary.car_year.desc(), MarketSummary.km_bin).limit(500).all()
+
+    def _tr(value):
+        return translate(value, lang) if value and lang != "ko" else value
+
     return [{
-        "car_code": _clean(r.car_code), "maker": _clean(r.maker),
-        "model_name": _clean(r.model_name), "mdetail_name": _clean(r.mdetail_name),
-        "grade_name": _clean(r.grade_name), "gdetail_name": _clean(r.gdetail_name),
-        "car_name": _clean(r.car_name), "car_year": r.car_year,
-        "fuel": _clean(r.fuel), "awd": _clean(r.awd),
+        "car_code": _clean(r.car_code), "maker": _tr(_clean(r.maker)),
+        "model_name": _tr(_clean(r.model_name)), "mdetail_name": _tr(_clean(r.mdetail_name)),
+        "grade_name": _tr(_clean(r.grade_name)), "gdetail_name": _tr(_clean(r.gdetail_name)),
+        "car_name": _tr(_clean(r.car_name)), "car_year": r.car_year,
+        "fuel": _tr(_clean(r.fuel)), "awd": _clean(r.awd),
         "imported": _clean(r.imported),
         "is_accident_free": _accident_label(r.is_accident_free, lang),
         "is_accident_free_flag": bool(r.is_accident_free),
         "km_bin": _clean(r.km_bin), "start_avg": r.start_avg, "hammer_avg": r.hammer_avg,
         "wow_pct": r.mom_pct, "mom_pct": r.mom_pct,  # mom_pct=전주대비(%) alias
-        "sample_count": r.sample_count, "note": _clean(r.note),
+        "sample_count": r.sample_count, "note": _tr(_clean(r.note)),
     } for r in rows]
 
 
@@ -250,22 +254,24 @@ def samples(maker=None, model_name=None, mdetail_name=None, grade_name=None,
         q = q.filter(AuctionRecord.is_accident_free.is_(False))
 
     rows = q.order_by(AuctionRecord.hammer_price.desc()).limit(limit).all()
+
+    def _tr(value):
+        return translate(value, lang) if value and lang != "ko" else value
+
     items = []
     for r in rows:
         acc = _accident_label(r.is_accident_free, lang)
-        detail = _clean(r.accident_detail) or ""
-        if detail and lang != "ko":
-            detail = translate(detail, lang)
+        detail = _tr(_clean(r.accident_detail) or "")
         items.append({
             "id": r.id,
-            "car_name": _clean(r.car_name),
-            "maker": _clean(r.maker),
-            "model_name": _clean(r.model_name),
-            "mdetail_name": _clean(r.mdetail_name),
-            "grade_name": _clean(r.grade_name),
-            "gdetail_name": _clean(r.gdetail_name),
+            "car_name": _tr(_clean(r.car_name)),
+            "maker": _tr(_clean(r.maker)),
+            "model_name": _tr(_clean(r.model_name)),
+            "mdetail_name": _tr(_clean(r.mdetail_name)),
+            "grade_name": _tr(_clean(r.grade_name)),
+            "gdetail_name": _tr(_clean(r.gdetail_name)),
             "car_year": r.car_year,
-            "fuel": _clean(r.fuel),
+            "fuel": _tr(_clean(r.fuel)),
             "awd": _clean(r.awd),
             "car_km": r.car_km,
             "km_bin": _clean(r.km_bin),

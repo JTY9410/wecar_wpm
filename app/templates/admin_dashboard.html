@@ -99,6 +99,35 @@
     </div>
 </div>
 
+<div class="glass-card mt-3 p-3" id="translate-settings">
+  <h5 class="fw-bold mb-1">Google 번역 API 연동</h5>
+  <p class="small text-muted mb-3">
+    차명·지역·색상 등 자유 텍스트 번역(영/일)의 1차 엔진으로 사용됩니다. Gemini가 있으면 결과를 이어서 다듬습니다.
+    둘 다 없으면 원문이 그대로 표시됩니다.
+  </p>
+  <div class="mb-2">
+    <span class="badge {{ 'bg-success' if google_translate_status.key_configured else 'bg-warning text-dark' }}">
+      {{ '키 등록됨' if google_translate_status.key_configured else '키 미등록' }}
+    </span>
+    {% if google_translate_status.key_configured %}
+      <span class="small text-muted ms-1">{{ google_translate_status.key_hint }}</span>
+    {% endif %}
+  </div>
+  <div class="row g-2 align-items-end">
+    <div class="col-md-6">
+      <div class="input-group">
+        <input id="key-google_translate" type="password" class="form-control" autocomplete="off"
+               placeholder="{% if google_translate_status.key_configured %}새 키를 입력하면 교체됩니다{% else %}Google Cloud Translation API 키를 붙여넣으세요{% endif %}">
+        <button class="btn btn-outline-secondary" type="button" onclick="toggleKey('google_translate')" title="키 보기/숨기기">보기</button>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <button class="btn btn-primary" onclick="saveGoogleTranslateKey()">키 저장</button>
+      <button class="btn btn-outline-danger" onclick="clearGoogleTranslateKey()">키삭제</button>
+    </div>
+  </div>
+</div>
+
 <div class="glass-card mt-3 p-3">
   <h6 class="fw-bold">업로드 히스토리</h6>
   <table class="table table-sm"><thead><tr><th>일시</th><th>파일</th><th>주차</th><th>모드</th><th>상태</th><th>행수</th><th>작업자</th><th></th></tr></thead>
@@ -202,6 +231,18 @@ async function saveLLM(provider) {
 async function clearLLM(provider) {
   if (!confirm(provider + ' API 키를 삭제할까요?')) return;
   const d = await post('/admin/llm/settings', {provider, clear_key:'1'});
+  if (d.ok) setTimeout(() => location.reload(), 500);
+}
+async function saveGoogleTranslateKey() {
+  const keyEl = document.getElementById('key-google_translate');
+  const key = (keyEl.value || '').trim();
+  if (!key) return toast('API 키를 입력한 뒤 저장하세요.', 'warning');
+  const d = await post('/admin/translate/settings', {api_key: key});
+  if (d.ok) { keyEl.value = ''; setTimeout(() => location.reload(), 700); }
+}
+async function clearGoogleTranslateKey() {
+  if (!confirm('Google 번역 API 키를 삭제할까요?')) return;
+  const d = await post('/admin/translate/settings', {clear_key: '1'});
   if (d.ok) setTimeout(() => location.reload(), 500);
 }
 async function testLLM(provider) {

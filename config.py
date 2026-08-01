@@ -27,6 +27,7 @@ class Config:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+    GOOGLE_TRANSLATE_API_KEY = os.getenv("GOOGLE_TRANSLATE_API_KEY", "")
     DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///instance/wecarcar1_auto.db")
     if DATABASE_URL.startswith("sqlite:///"):
         _raw = DATABASE_URL.replace("sqlite:///", "")

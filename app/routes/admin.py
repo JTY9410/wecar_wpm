@@ -9,7 +9,7 @@ from werkzeug.utils import secure_filename
 from app.decorators import admin_required
 from app.extensions import db
 from app.models import AuctionRecord, LLMConfig, SyncLog, UploadHistory
-from app.services import market_query, rag_store
+from app.services import google_translate, market_query, rag_store
 from app.services.excel_pipeline import ExcelValidationError, process_weekly_upload
 from app.services.llm_hub import (
     LLMError, generate_market_summary, key_status, save_provider_settings,
@@ -29,12 +29,17 @@ ALLOWED_EXT = {".xlsx", ".xls"}
 def dashboard():
     history = UploadHistory.query.order_by(UploadHistory.created_at.desc()).limit(20).all()
     logs = SyncLog.query.order_by(SyncLog.created_at.desc()).limit(20).all()
+    google_key = google_translate.resolve_api_key()
     return render_template(
         "admin_dashboard.html",
         history=history,
         logs=logs,
         llm_status=key_status(),
         rag_available=rag_store.is_available(),
+        google_translate_status={
+            "key_configured": bool(google_key),
+            "key_hint": (google_key[:4] + "..." + google_key[-4:]) if len(google_key) >= 12 else ("설정됨" if google_key else "미설정"),
+        },
     )
 
 
@@ -194,6 +199,19 @@ def llm_settings():
         return jsonify({"ok": False, "error": str(exc)}), 400
     return jsonify({"ok": True, "message": f"{provider} 설정이 저장되었습니다.",
                     "status": key_status()})
+
+
+@admin_bp.route("/translate/settings", methods=["POST"])
+@login_required
+@admin_required
+def translate_settings():
+    """Google 번역 API 키 저장 — 매물/차명 등 자유 텍스트 번역의 1차 엔진으로 사용."""
+    api_key = request.form.get("api_key")
+    clear_key = request.form.get("clear_key") == "1"
+    if not clear_key and (api_key is None or not str(api_key).strip()):
+        return jsonify({"ok": False, "error": "API 키를 입력하세요."}), 400
+    google_translate.save_api_key(api_key=api_key, clear_key=clear_key)
+    return jsonify({"ok": True, "message": "Google 번역 API 키가 저장되었습니다."})
 
 
 @admin_bp.route("/llm/test", methods=["POST"])

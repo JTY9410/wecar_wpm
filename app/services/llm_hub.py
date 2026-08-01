@@ -93,7 +93,10 @@ class GeminiProvider(BaseProvider):
         model = resolve_model("gemini")
         try:
             from google import genai
-            client = genai.Client(api_key=api_key)
+            from google.genai import types
+            # google-genai==0.3.0 has no HttpOptions; guard for forward/backward compat.
+            http_options = types.HttpOptions(timeout=15000) if hasattr(types, "HttpOptions") else None
+            client = genai.Client(api_key=api_key, http_options=http_options) if http_options else genai.Client(api_key=api_key)
             resp = client.models.generate_content(model=model, contents=prompt)
             text = getattr(resp, "text", None)
             if not text:

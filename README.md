@@ -28,10 +28,13 @@ docker compose up -d --build
 ## 다국어 (ko/en/ja)
 
 - 상단바 언어 스위처(KO/EN/JA)로 전환, 화면 레이아웃(사이드 레일·모바일 네비·버튼)은 언어별 자동 조정된다.
-- 고정 UI 문구: `app/i18n/{ko,en,ja}.json` (사람이 검수한 번역, 정적 사전).
-- 자유 텍스트(사고내역 등): `app/services/i18n_translate.py` — Gemini(`GEMINI_API_KEY`)로 번역 후 `TranslationCache`에 캐시.
-  같은 용어는 정적 사전을 용어집으로, 과거 번역은 few-shot 예시로 프롬프트에 포함해 일관된 톤을 유지한다.
-  키 미설정 시 원문 그대로 표시(그레이스풀 패스스루).
+- 고정 UI 문구: `app/i18n/{ko,en,ja}.json` (사람이 검수한 번역, 정적 사전). `|tr` 필터가 원문 값이 정적 사전에 있으면
+  이 검수된 번역을 그대로 재사용한다.
+- 차명·제조사·모델명·사고내역 등 자유 텍스트: `app/services/i18n_translate.py` 가 두 엔진을 조합해 번역 후 `TranslationCache`에 캐시.
+  1) **Google Cloud Translation API** — 관리자 대시보드(`/admin`)에서 API 키 등록 시 1차 초벌 번역(넓은 커버리지).
+     키는 기존 `LLMConfig` 테이블(provider=`google_translate`)에 저장되어 별도 마이그레이션이 필요 없다.
+  2) **Gemini**(`GEMINI_API_KEY`) — Google 초벌 결과를 용어집·과거 캐시를 참고해 자연스럽게 다듬는다(윤문).
+  Google 키가 없으면 Gemini가 직접 번역, 둘 다 없으면 원문 그대로 표시(그레이스풀 패스스루).
 
 ## Wholesale API (car2 연동 — 추후)
 
