@@ -37,12 +37,13 @@ def test_report_graceful_failure(app, db, monkeypatch):
     assert res["graceful"] is True
 
 
-def test_translate_passthrough_and_cache(app, db):
-    # No GEMINI_API_KEY configured in tests → passthrough, but cached row still created.
+def test_translate_passthrough_is_not_cached(app, db):
+    # No GEMINI_API_KEY configured in tests → passthrough, and it must NOT be
+    # cached, so a later successful translation isn't permanently masked.
     out = translate("사고 없음", "en")
     assert out == "사고 없음"
     from app.models import TranslationCache
-    assert TranslationCache.query.filter_by(lang="en").count() == 1
+    assert TranslationCache.query.filter_by(lang="en").count() == 0
 
 
 def test_load_pack():

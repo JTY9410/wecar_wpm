@@ -11,6 +11,13 @@ from app.services.i18n_translate import load_pack, translate
 _CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
 
+def _safe_int(val):
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return None
+
+
 def _clean(val):
     if val is None:
         return None
@@ -98,8 +105,8 @@ def _filter_summary(q, maker=None, model_name=None, mdetail_name=None, grade_nam
         q = q.filter(MarketSummary.grade_name == grade_name)
     if gdetail_name:
         q = q.filter(MarketSummary.gdetail_name == gdetail_name)
-    if car_year not in (None, ""):
-        q = q.filter(MarketSummary.car_year == int(car_year))
+    if car_year not in (None, "") and _safe_int(car_year) is not None:
+        q = q.filter(MarketSummary.car_year == _safe_int(car_year))
     if fuel:
         q = q.filter(MarketSummary.fuel == fuel)
     if awd:
@@ -240,8 +247,8 @@ def samples(maker=None, model_name=None, mdetail_name=None, grade_name=None,
         q = q.filter(AuctionRecord.grade_name == grade_name)
     if gdetail_name:
         q = q.filter(AuctionRecord.gdetail_name == gdetail_name)
-    if car_year not in (None, ""):
-        q = q.filter(AuctionRecord.car_year == int(car_year))
+    if car_year not in (None, "") and _safe_int(car_year) is not None:
+        q = q.filter(AuctionRecord.car_year == _safe_int(car_year))
     if km_bin:
         q = q.filter(AuctionRecord.km_bin == km_bin)
     if fuel:

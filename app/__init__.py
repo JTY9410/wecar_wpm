@@ -1,9 +1,20 @@
 from pathlib import Path
+from urllib.parse import urlparse
 
 from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 
 from config import Config
 from app.extensions import db, login_manager, migrate
+
+
+def _safe_local_redirect(target: str, fallback: str) -> str:
+    """Only allow same-site relative redirects; reject absolute/protocol-relative URLs."""
+    if not target:
+        return fallback
+    parsed = urlparse(target)
+    if parsed.scheme or parsed.netloc or not target.startswith("/") or target.startswith("//"):
+        return fallback
+    return target
 
 
 def create_app(config_class=Config):
@@ -72,7 +83,7 @@ def create_app(config_class=Config):
         if lang in app.config.get("SUPPORTED_LANGS", ["ko", "en", "ja"]):
             session["lang"] = lang
         nxt = request.args.get("next") or request.referrer or url_for("market.index")
-        return redirect(nxt)
+        return redirect(_safe_local_redirect(nxt, url_for("market.index")))
 
     @app.route("/health")
     def health():

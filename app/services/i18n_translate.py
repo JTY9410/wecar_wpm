@@ -130,6 +130,10 @@ def translate(text, lang):
     """Translate free-form text with local cache. Falls back to source text."""
     if not text or lang == "ko" or lang not in _LANG_NAMES:
         return text
+    if text in load_pack(lang).values():
+        # Already-localized UI string (e.g. t('unknown')) piped through |tr —
+        # don't re-translate it as if it were Korean source text.
+        return text
     static = _static_lookup(text, lang)
     if static:
         return static
@@ -139,7 +143,15 @@ def translate(text, lang):
         return row.translated_text
 
     translated = _call_provider(text, lang)
-    db.session.add(TranslationCache(source_hash=h, source_text=text, lang=lang,
-                                    translated_text=translated))
-    db.session.commit()
+    if translated == text:
+        # Provider unavailable/failed — passthrough. Don't cache it, so a
+        # later successful translation isn't permanently masked.
+        return translated
+    try:
+        db.session.add(TranslationCache(source_hash=h, source_text=text, lang=lang,
+                                        translated_text=translated))
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        logger.warning("Translation cache write failed: %s", exc)
     return translated

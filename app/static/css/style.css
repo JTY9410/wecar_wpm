@@ -21,6 +21,30 @@ body {
     box-shadow: var(--wc-shadow-md);
 }
 
+.dropzone {
+    border: 2px dashed var(--wc-border);
+    border-radius: var(--wc-radius-lg);
+    cursor: pointer;
+    color: var(--wc-text-secondary);
+    transition: .15s;
+}
+
+.dropzone.over {
+    border-color: var(--wc-primary);
+    background: var(--wc-secondary-soft);
+}
+
+.llm-panel {
+    border: 1px solid var(--wc-border);
+    border-radius: var(--wc-radius-lg);
+    background: var(--wc-bg-elevated);
+}
+
+.llm-panel.llm-active {
+    border-color: var(--wc-primary);
+    box-shadow: 0 0 0 2px var(--wc-secondary-soft);
+}
+
 .btn-ghost {
     background: transparent;
     border: 1px solid var(--wc-border);
@@ -704,6 +728,11 @@ body {
     z-index: 1020;
     padding: .65rem 1rem .35rem;
     background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    flex-wrap: wrap;
 }
 
 .top-bar-inner {
@@ -1587,8 +1616,26 @@ body.app-body {
     #analysisForm .form-control,
     #analysisForm .form-select,
     #analysisForm .btn,
+    .glass-card .form-control,
+    .glass-card .form-select,
+    .glass-card > .btn,
+    .llm-panel .btn,
     .nav-pills .nav-link {
         min-height: 44px;
+    }
+
+    .llm-panel .btn-group {
+        flex-wrap: wrap;
+    }
+
+    .llm-panel .btn-group .btn {
+        flex: 1 1 calc(50% - .1rem);
+    }
+
+    #f-search,
+    #f-matrix {
+        min-height: 44px;
+        flex: 1 1 auto;
     }
 
     .analysis-form-pair > [class*="col-"] {

@@ -1,5 +1,6 @@
 import os
 import re
+import uuid
 from datetime import datetime
 
 from flask import (Blueprint, current_app, jsonify, render_template, request)
@@ -64,8 +65,13 @@ def upload():
     if ext not in ALLOWED_EXT:
         return jsonify({"ok": False, "error": "엑셀 파일(.xlsx/.xls)만 허용됩니다."}), 400
 
+    week_no = request.form.get("week_no") or _infer_week(file.filename)
     filename = secure_filename(file.filename)
-    week_no = request.form.get("week_no") or _infer_week(filename)
+    if not filename or "." not in filename:
+        # Non-ASCII (e.g. Korean/Japanese) filenames collapse to just the
+        # extension under secure_filename; fall back to a unique name so
+        # uploads don't silently overwrite each other.
+        filename = f"{uuid.uuid4().hex}{ext}"
     dest = os.path.join(current_app.config["EXCEL_UPLOAD_PATH"], filename)
     os.makedirs(current_app.config["EXCEL_UPLOAD_PATH"], exist_ok=True)
     file.save(dest)

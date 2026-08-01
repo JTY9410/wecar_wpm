@@ -112,12 +112,12 @@
         </ul>
       </div>
       <span class="user-chip small">{{ current_user.username }}{% if current_user.is_admin %} · ADMIN{% endif %}</span>
-      <a class="btn btn-sm btn-ghost d-lg-none" href="{{ url_for('auth.logout') }}">{{ t('logout') }}</a>
+      <a class="btn btn-sm btn-ghost d-none d-lg-inline-flex" href="{{ url_for('auth.logout') }}">{{ t('logout') }}</a>
     </div>
   </header>
   {% endif %}
 
-  <main class="app-content">
+  <main class="app-content container">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% for cat, msg in messages %}
         <div class="alert alert-{{ cat }} glass-card">{{ msg }}</div>

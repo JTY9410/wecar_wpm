@@ -130,6 +130,7 @@
 
 <div class="glass-card mt-3 p-3">
   <h6 class="fw-bold">업로드 히스토리</h6>
+  <div class="table-responsive admin-table-panel" data-scroll>
   <table class="table table-sm"><thead><tr><th>일시</th><th>파일</th><th>주차</th><th>모드</th><th>상태</th><th>행수</th><th>작업자</th><th></th></tr></thead>
   <tbody>{% for h in history %}<tr data-id="{{ h.id }}">
     <td>{{ h.created_at.strftime('%m-%d %H:%M') }}</td><td>{{ h.filename }}</td>
@@ -140,10 +141,12 @@
       <button type="button" class="btn btn-sm btn-outline-danger hist-del" data-id="{{ h.id }}">삭제</button>
     </td>
   </tr>{% endfor %}</tbody></table>
+  </div>
 </div>
 
 <div class="glass-card mt-3 p-3">
   <h6 class="fw-bold">동기화 / LLM 로그</h6>
+  <div class="table-responsive admin-table-panel" data-scroll>
   <table class="table table-sm"><thead><tr><th>일시</th><th>유형</th><th>상태</th><th>건수</th><th>메시지</th></tr></thead>
   <tbody>{% for log in logs %}<tr>
     <td>{{ log.created_at.strftime('%m-%d %H:%M') if log.created_at else '' }}</td>
@@ -152,6 +155,7 @@
     <td>{{ log.records_processed }}</td>
     <td class="small text-muted">{{ log.error_message or '' }}</td>
   </tr>{% endfor %}</tbody></table>
+  </div>
 </div>
 {% endblock %}
 {% block scripts %}

@@ -1,5 +1,6 @@
 """실시간 매물 동기화 — 청크 스트리밍 + 배치 커밋 (저메모리)."""
 import logging
+import os
 import tempfile
 from pathlib import Path
 
@@ -153,7 +154,9 @@ def sync_listings(fetch=None, fetch_pages=None, with_images=True, batch_size=Non
             return
         yield from iter_listing_pages(per_page=size)
 
-    seen_path = Path(tempfile.mkstemp(prefix="sync_seen_", suffix=".txt")[1])
+    _seen_fd, _seen_name = tempfile.mkstemp(prefix="sync_seen_", suffix=".txt")
+    os.close(_seen_fd)
+    seen_path = Path(_seen_name)
     processed = 0
     source = "none"
 
