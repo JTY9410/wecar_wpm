@@ -67,5 +67,15 @@
   "auth_affiliation": "所属",
   "auth_signup_submit": "登録申請",
   "auth_signup_subtitle": "登録後、管理者の承認が必要です。",
-  "auth_back_to_login": "ログインに戻る"
+  "auth_back_to_login": "ログインに戻る",
+  "forecast_btn": "予想価格分析",
+  "forecast_title": "今週の予想価格分析",
+  "forecast_loading": "予想価格を分析中…",
+  "forecast_empty": "推移データが不足しており予想価格を算出できません。",
+  "forecast_current": "直近落札平均",
+  "forecast_expected": "今週の予想落札価格",
+  "forecast_trend": "週別推移",
+  "forecast_week": "週",
+  "forecast_report": "AI要約レポート",
+  "forecast_disclaimer": "統計的な推定値であり、参考用です。実際の落札価格と異なる場合があります。"
 }

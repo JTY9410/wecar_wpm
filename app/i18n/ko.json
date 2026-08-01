@@ -67,5 +67,15 @@
   "auth_affiliation": "소속",
   "auth_signup_submit": "가입 신청",
   "auth_signup_subtitle": "가입 후 관리자 승인이 필요합니다.",
-  "auth_back_to_login": "로그인으로 돌아가기"
+  "auth_back_to_login": "로그인으로 돌아가기",
+  "forecast_btn": "예상가격 분석",
+  "forecast_title": "금주 예상 가격 분석",
+  "forecast_loading": "예상 가격을 분석하는 중…",
+  "forecast_empty": "추이 데이터가 부족해 예상 가격을 산출할 수 없습니다.",
+  "forecast_current": "최근 낙찰가 평균",
+  "forecast_expected": "금주 예상 낙찰가",
+  "forecast_trend": "주차별 추이",
+  "forecast_week": "주차",
+  "forecast_report": "AI 요약 리포트",
+  "forecast_disclaimer": "통계적 추정치로 참고용입니다. 실제 낙찰가와 다를 수 있습니다."
 }

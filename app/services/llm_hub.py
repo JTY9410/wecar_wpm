@@ -241,6 +241,28 @@ def test_provider(name=None):
         return {"ok": False, "provider": provider.name, "error": str(exc)}
 
 
+def generate_price_forecast(context):
+    """금주 예상가 리포트 — 가격 수치는 통계 계산값(market_query.forecast_from_trend)을 그대로 인용하고,
+    AI는 그 수치를 바꾸지 않은 채 트렌드/표본 근거만 정성적으로 설명한다 (PRD §2 준수)."""
+    trend_lines = "\n".join(
+        f"- {w['week_no']}: 평균 {w['avg_price']} 만원 (표본 {w['sample_count']}건)"
+        for w in context.get("trend", [])
+    )
+    prompt = (
+        "아래는 특정 차종의 주차별 도매 경매 낙찰가 평균 추이와, 이미 통계적으로 계산된 "
+        "금주 예상 낙찰가입니다. 제시된 예상가 수치는 절대 변경하거나 새로 계산하지 말고, "
+        "이 수치를 근거로 시세 흐름과 참고사항을 3~4문장의 간단한 보고서로 한국어로 작성하세요.\n\n"
+        f"차종: {context.get('title', '')}\n"
+        f"최근 낙찰가 평균: {context.get('current_avg')} 만원\n"
+        f"금주 예상 낙찰가(계산값, 변경 금지): {context.get('expected_price')} 만원 "
+        f"(전주대비 {context.get('expected_pct')}%)\n"
+        f"주차별 추이:\n{trend_lines or '- (표본 부족)'}"
+    )
+    provider = get_provider()
+    text = provider.generate(prompt)
+    return {"ok": True, "provider": provider.name, "text": text}
+
+
 def generate_market_summary(sample_rows):
     """시세 요약 정성 리포트 (가격 수치 예측 금지)."""
     lines = []

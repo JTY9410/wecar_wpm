@@ -67,5 +67,15 @@
   "auth_affiliation": "Affiliation",
   "auth_signup_submit": "Request sign-up",
   "auth_signup_subtitle": "Admin approval is required after signing up.",
-  "auth_back_to_login": "Back to sign in"
+  "auth_back_to_login": "Back to sign in",
+  "forecast_btn": "Price forecast",
+  "forecast_title": "This week's expected price analysis",
+  "forecast_loading": "Analyzing expected price…",
+  "forecast_empty": "Not enough trend data to estimate an expected price.",
+  "forecast_current": "Recent avg. hammer price",
+  "forecast_expected": "This week's expected price",
+  "forecast_trend": "Weekly trend",
+  "forecast_week": "Week",
+  "forecast_report": "AI summary report",
+  "forecast_disclaimer": "Statistical estimate for reference only. Actual hammer prices may differ."
 }

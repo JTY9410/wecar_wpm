@@ -130,5 +130,50 @@
     </div>
   </div>
 </div>
-<script src="{{ url_for('static', filename='js/market.js') }}?v=4"></script>
+<div class="modal fade bp-samples-modal" id="bpForecastModal" tabindex="-1" aria-labelledby="bpForecastModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-md-down">
+    <div class="modal-content">
+      <div class="modal-header border-bottom">
+        <div class="min-w-0 flex-grow-1 pe-2">
+          <p class="section-kicker mb-1">FORECAST</p>
+          <h5 class="modal-title mb-0" id="bpForecastModalLabel">{{ i18n.forecast_title }}</h5>
+          <p class="small text-muted mb-0 text-truncate" id="bpForecastSubtitle"></p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ i18n.close }}"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div id="bpForecastLoading" class="p-5 text-center text-muted d-none">{{ i18n.forecast_loading }}</div>
+        <div id="bpForecastEmpty" class="p-5 text-center text-muted d-none">{{ i18n.forecast_empty }}</div>
+        <div id="bpForecastContent" class="d-none p-3">
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <div class="glass-card p-3 text-center">
+                <p class="small text-muted mb-1">{{ i18n.forecast_current }}</p>
+                <p class="h4 mb-0" id="bpForecastCurrent">-</p>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="glass-card p-3 text-center">
+                <p class="small text-muted mb-1">{{ i18n.forecast_expected }}</p>
+                <p class="h4 mb-0 text-primary" id="bpForecastExpected">-</p>
+                <p class="mb-0" id="bpForecastPct"></p>
+              </div>
+            </div>
+          </div>
+          <p class="section-kicker mb-2">{{ i18n.forecast_trend }}</p>
+          <div class="table-responsive market-scroll-panel mb-3" style="max-height:14rem">
+            <table class="table table-sm mb-0">
+              <thead><tr><th>{{ i18n.forecast_week }}</th><th class="text-end">{{ i18n.hammer_avg }}</th><th class="text-end">{{ i18n.sample_count }}</th></tr></thead>
+              <tbody id="bpForecastTrendBody"></tbody>
+            </table>
+          </div>
+          <p class="section-kicker mb-2">{{ i18n.forecast_report }}</p>
+          <p class="mb-3" id="bpForecastReport" style="white-space:pre-line"></p>
+          <p class="small text-muted mb-0" id="bpForecastNote"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='js/market.js') }}?v=5"></script>
 {% endblock %}

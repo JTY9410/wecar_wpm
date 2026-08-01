@@ -133,10 +133,19 @@
       accident_free: x.is_accident_free_flag ? "1" : "0",
       title: [x.maker, x.model_name, x.gdetail_name, x.car_year, x.km_bin].filter(Boolean).join(" · "),
     };
-    return `<div class="btn-group btn-group-sm">
+    return `<div class="btn-group btn-group-sm flex-wrap">
       <button type="button" class="btn btn-outline-primary sample-btn" ${dataAttrs(payload)}>${esc(t("samples"))}</button>
       <button type="button" class="btn btn-outline-secondary matrix-row-btn" ${dataAttrs(payload)}>${esc(t("matrix"))}</button>
+      <button type="button" class="btn btn-outline-success forecast-btn" ${dataAttrs(payload)}>${esc(t("forecast_btn"))}</button>
     </div>`;
+  }
+
+  function momBadge(pct) {
+    if (pct == null) return `<span class="badge-neutral">-</span>`;
+    const n = Number(pct);
+    const arrow = n > 0 ? "▲" : n < 0 ? "▼" : "–";
+    const cls = n > 0 ? "badge-bad" : n < 0 ? "badge-good" : "badge-neutral";
+    return `<span class="${cls}">${arrow} ${Math.abs(n)}%</span>`;
   }
 
   g("f-search").onclick = async () => {
@@ -161,8 +170,8 @@
         <td>${esc(x.is_accident_free)}</td>
         <td>${esc(x.car_year)}</td>
         <td>${esc(x.km_bin)}</td>
-        <td class="fw-semibold text-end">${x.hammer_avg != null ? Number(x.hammer_avg).toLocaleString() : "-"}</td>
-        <td>${x.wow_pct == null && x.mom_pct == null ? "-" : (x.wow_pct ?? x.mom_pct) + "%"}</td>
+        <td class="fw-semibold text-end price-cell">${x.hammer_avg != null ? Number(x.hammer_avg).toLocaleString() + " " + esc(unit()) : "-"}</td>
+        <td>${momBadge(x.wow_pct ?? x.mom_pct)}</td>
         <td>${x.sample_count || 0}</td>
         <td class="text-nowrap">${rowActions(x)}</td>
       </tr>`).join("");
@@ -278,6 +287,52 @@
     }
   }
 
+  const forecastModalEl = g("bpForecastModal");
+  let forecastModal = null;
+  if (forecastModalEl && window.bootstrap) {
+    document.body.appendChild(forecastModalEl);
+    forecastModal = bootstrap.Modal.getOrCreateInstance(forecastModalEl);
+  }
+
+  async function openForecast(payload) {
+    if (!forecastModal) return toast(t("forecast_empty"), "warning");
+    g("bpForecastSubtitle").textContent = payload.title || "";
+    g("bpForecastLoading").classList.remove("d-none");
+    g("bpForecastEmpty").classList.add("d-none");
+    g("bpForecastContent").classList.add("d-none");
+    forecastModal.show();
+
+    try {
+      const r = await fetch("/api/price-forecast?" + qs(payload), {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      });
+      const data = await r.json();
+      g("bpForecastLoading").classList.add("d-none");
+      if (!r.ok || !data.ok) {
+        g("bpForecastEmpty").classList.remove("d-none");
+        return;
+      }
+      g("bpForecastCurrent").textContent = data.current_avg != null
+        ? `${Number(data.current_avg).toLocaleString()} ${unit()}` : "-";
+      g("bpForecastExpected").textContent = data.expected_price != null
+        ? `${Number(data.expected_price).toLocaleString()} ${unit()}` : "-";
+      g("bpForecastPct").innerHTML = momBadge(data.expected_pct);
+      g("bpForecastTrendBody").innerHTML = (data.trend || []).map((w) => `<tr>
+        <td>${esc(w.week_no)}</td>
+        <td class="text-end">${Number(w.avg_price).toLocaleString()} ${esc(unit())}</td>
+        <td class="text-end">${w.sample_count}</td>
+      </tr>`).join("") || `<tr><td colspan="3" class="text-muted text-center">-</td></tr>`;
+      g("bpForecastReport").textContent = data.report || "";
+      g("bpForecastNote").textContent = data.note || "";
+      g("bpForecastContent").classList.remove("d-none");
+    } catch (e) {
+      g("bpForecastLoading").classList.add("d-none");
+      g("bpForecastEmpty").classList.remove("d-none");
+      toast(t("search_fail"), "danger");
+    }
+  }
+
   document.addEventListener("click", (e) => {
     const sampleBtn = e.target.closest(".sample-btn");
     if (sampleBtn) {
@@ -289,6 +344,12 @@
     if (matrixBtn) {
       e.preventDefault();
       renderMatrix(readPayload(matrixBtn));
+      return;
+    }
+    const forecastBtn = e.target.closest(".forecast-btn");
+    if (forecastBtn) {
+      e.preventDefault();
+      openForecast(readPayload(forecastBtn));
     }
   });
 })();

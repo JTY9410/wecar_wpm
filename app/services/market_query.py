@@ -297,3 +297,75 @@ def samples(maker=None, model_name=None, mdetail_name=None, grade_name=None,
 # backward-compat aliases used by market routes
 def car_names(maker, model_name):
     return mdetails(maker, model_name)
+
+
+def price_trend(maker=None, model_name=None, mdetail_name=None, grade_name=None,
+                 gdetail_name=None, car_year=None, fuel=None, awd=None, weeks=8):
+    """차종 조합의 주차별(week_no) 낙찰가 평균 추이. km_bin은 주차별 표본 수 확보를 위해 제외."""
+    q = AuctionRecord.query.filter(
+        AuctionRecord.hammer_price.isnot(None),
+        AuctionRecord.hammer_price > 0,
+        AuctionRecord.week_no.isnot(None),
+    )
+    if maker:
+        q = q.filter(AuctionRecord.maker == maker)
+    if model_name:
+        q = q.filter(AuctionRecord.model_name == model_name)
+    if mdetail_name:
+        q = q.filter(AuctionRecord.mdetail_name == mdetail_name)
+    if grade_name:
+        q = q.filter(AuctionRecord.grade_name == grade_name)
+    if gdetail_name:
+        q = q.filter(AuctionRecord.gdetail_name == gdetail_name)
+    if car_year not in (None, "") and _safe_int(car_year) is not None:
+        q = q.filter(AuctionRecord.car_year == _safe_int(car_year))
+    if fuel:
+        q = q.filter(AuctionRecord.fuel == fuel)
+    if awd:
+        q = q.filter(AuctionRecord.awd == awd)
+
+    rows = q.all()
+    by_week = defaultdict(list)
+    for r in rows:
+        by_week[r.week_no].append(r.hammer_price)
+
+    week_keys = sorted(by_week.keys())[-max(1, int(weeks)):]
+    return [{
+        "week_no": w,
+        "avg_price": round(sum(by_week[w]) / len(by_week[w]), 1),
+        "sample_count": len(by_week[w]),
+    } for w in week_keys]
+
+
+def forecast_from_trend(trend):
+    """주차별 추이를 바탕으로 금주 예상가를 산출 (AI가 아닌 통계적 계산, PRD §2 준수).
+
+    최근 3개 구간의 전주대비 변동률을 최근일수록 높은 가중치로 반영해
+    다음 낙찰가를 추정한다. 변동폭은 ±15%로 제한해 소표본 노이즈를 억제한다.
+    """
+    if not trend:
+        return {"ok": False}
+
+    latest = trend[-1]
+    current_avg = latest["avg_price"]
+    if len(trend) < 2:
+        return {
+            "ok": True, "current_avg": current_avg, "expected_price": current_avg,
+            "expected_pct": 0.0, "basis": "single_week",
+        }
+
+    pct_changes = []
+    for i in range(1, len(trend)):
+        prev = trend[i - 1]["avg_price"]
+        if prev:
+            pct_changes.append((trend[i]["avg_price"] - prev) / prev)
+    recent = pct_changes[-3:]
+    weights = list(range(1, len(recent) + 1))
+    trend_pct = sum(p * w for p, w in zip(recent, weights)) / sum(weights)
+    trend_pct = max(-0.15, min(0.15, trend_pct))
+
+    expected_price = round(current_avg * (1 + trend_pct), 1)
+    return {
+        "ok": True, "current_avg": current_avg, "expected_price": expected_price,
+        "expected_pct": round(trend_pct * 100, 1), "basis": "trend",
+    }

@@ -101,15 +101,12 @@
       </div>
     </div>
     <div class="d-flex align-items-center gap-2">
-      <div class="dropdown">
-        <button class="btn btn-sm btn-ghost dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-          {{ t('lang') }} · {{ lang|upper }}
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end">
-          {% for L in supported_langs %}
-          <li><a class="dropdown-item {{ 'active' if L == lang }}" href="{{ url_for('set_lang', lang=L, next=request.full_path) }}">{{ L|upper }}</a></li>
-          {% endfor %}
-        </ul>
+      <div class="btn-group lang-switch" role="group" aria-label="{{ t('lang') }}">
+        {% for L in supported_langs %}
+        <a href="{{ url_for('set_lang', lang=L, next=request.full_path) }}"
+           class="btn btn-sm lang-switch-btn {{ 'active' if L == lang else 'btn-ghost' }}"
+           aria-current="{{ 'true' if L == lang else 'false' }}">{{ L|upper }}</a>
+        {% endfor %}
       </div>
       <span class="user-chip small">{{ current_user.username }}{% if current_user.is_admin %} · ADMIN{% endif %}</span>
       <a class="btn btn-sm btn-ghost d-none d-lg-inline-flex" href="{{ url_for('auth.logout') }}">{{ t('logout') }}</a>
