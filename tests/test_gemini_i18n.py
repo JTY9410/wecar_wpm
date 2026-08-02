@@ -88,10 +88,24 @@ def test_translate_uses_google_draft_when_configured(app, db, monkeypatch):
     assert out == "Google Draft"
 
 
+def test_remote_false_skips_external_provider(app, db, monkeypatch):
+    """필터/캐스케이드는 remote=False로 외부 API를 호출하지 않는다."""
+    called = []
+
+    def boom(*a, **k):
+        called.append(1)
+        return ("Should not run", "google")
+
+    monkeypatch.setattr(i18n_translate, "_call_provider", boom)
+    out = translate("없는차종명XYZ", "en", remote=False)
+    assert out == "없는차종명XYZ"
+    assert called == []
+
+
 def test_hangul_result_is_not_cached(app, db, monkeypatch):
     monkeypatch.setattr(
         i18n_translate, "_call_provider",
-        lambda text, lang: ("프론트펜더", "google"),
+        lambda text, lang, polish=None: ("프론트펜더", "google"),
     )
     out = translate("프론트펜더XYZ", "en")
     assert out == "프론트펜더"
@@ -102,7 +116,7 @@ def test_hangul_result_is_not_cached(app, db, monkeypatch):
 def test_auto_promote_to_learned_glossary_after_threshold(app, db, monkeypatch):
     monkeypatch.setattr(
         i18n_translate, "_call_provider",
-        lambda text, lang: ("Front fender detail", "hybrid"),
+        lambda text, lang, polish=None: ("Front fender detail", "hybrid"),
     )
     src = "프론트펜더 판금 자동학습"
     for _ in range(i18n_translate.PROMOTE_THRESHOLD):
@@ -123,5 +137,9 @@ def test_translate_polishes_google_draft_with_gemini(app, db, monkeypatch):
         lambda text, lang, source_lang="ko": "Google Draft"
     )
     monkeypatch.setattr(i18n_translate, "_call_gemini", lambda text, lang, draft=None: "Polished Result")
-    out = translate("프론트펜더 판금 상세", "en")
+    out = translate(
+        "프론트펜더 판금 및 사고 상세 내역을 자연스럽게 번역해주세요 추가설명문",
+        "en",
+        polish=True,
+    )
     assert out == "Polished Result"

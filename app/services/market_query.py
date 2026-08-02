@@ -34,13 +34,21 @@ def _accident_label(is_free, lang="ko"):
 
 
 def _labeled(values, lang="ko"):
-    """필터 value는 한국어 원문 유지, label만 번역 — EN/JA UI에서도 DB 조회가 깨지지 않게."""
+    """필터 value는 한국어 원문 유지, label만 번역.
+
+    remote=False: 페이지 로드/캐스케이드에서 Google·Gemini 동기 호출로
+    gunicorn 워커가 타임아웃되지 않도록 용어집·캐시만 사용한다.
+    """
     out = []
     for v in values:
         if v is None or v == "":
             continue
         cleaned = _clean(v)
-        label = translate(cleaned, lang) if cleaned and lang != "ko" else cleaned
+        label = (
+            translate(cleaned, lang, remote=False)
+            if cleaned and lang != "ko"
+            else cleaned
+        )
         out.append({"value": cleaned, "label": label})
     return out
 
@@ -144,7 +152,8 @@ def grid(maker=None, model_name=None, mdetail_name=None, car_name=None,
     ).order_by(MarketSummary.car_year.desc(), MarketSummary.km_bin).limit(500).all()
 
     def _tr(value):
-        return translate(value, lang) if value and lang != "ko" else value
+        # polish=False: 그리드 N건마다 Gemini를 부르면 워커 타임아웃 발생
+        return translate(value, lang, polish=False) if value and lang != "ko" else value
 
     # value 필드는 한국어 원문(후속 필터/샘플 API용), *_label 은 화면 표시용 번역.
     result = []
@@ -291,7 +300,7 @@ def samples(maker=None, model_name=None, mdetail_name=None, grade_name=None,
     rows = q.order_by(AuctionRecord.hammer_price.desc()).limit(limit).all()
 
     def _tr(value):
-        return translate(value, lang) if value and lang != "ko" else value
+        return translate(value, lang, polish=False) if value and lang != "ko" else value
 
     items = []
     for r in rows:

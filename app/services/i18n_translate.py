@@ -186,18 +186,37 @@ def _call_gemini(text, lang, draft=None):
         return None
 
 
-def _call_provider(text, lang):
+def _should_polish(text, polish):
+    """짧은 제조사/모델명은 Google 초벌만으로 충분 — Gemini 동기 호출은 워커 타임아웃 유발."""
+    if polish is False:
+        return False
+    if polish is True:
+        return True
+    # auto: 긴 서술문만 Gemini 윤문
+    return len(text) > 40
+
+
+def _call_provider(text, lang, polish=None):
     draft = google_translate.translate_text(text, lang)
     if draft:
+        if _should_polish(text, polish):
+            polished = _call_gemini(text, lang, draft=draft)
+            if polished and _is_quality_ok(polished, lang):
+                return polished, "hybrid"
+            if _is_quality_ok(draft, lang):
+                return draft, "google"
+            return (polished or draft), ("hybrid" if polished else "google")
+        if _is_quality_ok(draft, lang):
+            return draft, "google"
+        # Google 초벌에 Hangul이 남은 경우에만 Gemini 재시도
         polished = _call_gemini(text, lang, draft=draft)
         if polished and _is_quality_ok(polished, lang):
             return polished, "hybrid"
-        if _is_quality_ok(draft, lang):
-            return draft, "google"
-        return (polished or draft), ("hybrid" if polished else "google")
-    direct = _call_gemini(text, lang)
-    if direct:
-        return direct, "gemini"
+        return draft, "google"
+    if _should_polish(text, polish) or polish is not False:
+        direct = _call_gemini(text, lang)
+        if direct:
+            return direct, "gemini"
     return text, "none"
 
 
@@ -249,7 +268,12 @@ def _maybe_promote(row):
         )
 
 
-def translate(text, lang):
+def translate(text, lang, *, remote=True, polish=None):
+    """자유 텍스트 번역.
+
+    remote=False: 용어집/캐시만 사용 (필터·캐스케이드용 — API 호출로 워커 타임아웃 방지)
+    polish: True/False/None(auto). 짧은 차량명은 Google만, 긴 서술만 Gemini 윤문.
+    """
     if not text or lang == "ko" or lang not in _LANG_NAMES:
         return text
     if text in load_pack(lang).values():
@@ -276,7 +300,11 @@ def translate(text, lang):
             _maybe_promote(row)
             return row.translated_text
 
-    translated, engine = _call_provider(text, lang)
+    if not remote:
+        # 외부 API 없이 원문 표시 — 페이지 로드/필터가 멈추지 않게
+        return text
+
+    translated, engine = _call_provider(text, lang, polish=polish)
     if translated == text or not _is_quality_ok(translated, lang):
         return translated
 
