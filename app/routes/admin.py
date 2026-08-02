@@ -9,7 +9,14 @@ from werkzeug.utils import secure_filename
 
 from app.decorators import admin_required
 from app.extensions import db
-from app.models import AuctionRecord, LLMConfig, SyncLog, TranslationCache, UploadHistory
+from app.models import (
+    AuctionRecord,
+    LearnedGlossary,
+    LLMConfig,
+    SyncLog,
+    TranslationCache,
+    UploadHistory,
+)
 from app.services import google_translate, market_query, rag_store
 from app.services.excel_pipeline import ExcelValidationError, process_weekly_upload
 from app.services.llm_hub import (
@@ -240,7 +247,9 @@ def translate_test():
 @login_required
 @admin_required
 def translations():
-    """번역 캐시 관리 — 오역을 교정하고 검수 표시해 자체 학습(few-shot)에 반영."""
+    """번역 캐시 관리 — 오역을 교정하고 검수/빈도 승격으로 자체 학습에 반영."""
+    from app.services.i18n_translate import PROMOTE_THRESHOLD
+
     lang = request.args.get("lang", "en")
     if lang not in ("en", "ja"):
         lang = "en"
@@ -258,14 +267,23 @@ def translations():
     pagination = query.order_by(TranslationCache.reviewed.asc(), TranslationCache.id.desc()).paginate(
         page=page, per_page=30, error_out=False
     )
+    glossary = (
+        LearnedGlossary.query.filter_by(lang=lang)
+        .order_by(LearnedGlossary.updated_at.desc())
+        .limit(50)
+        .all()
+    )
     return render_template(
         "admin_translations.html",
         lang=lang,
         q=q,
         pagination=pagination,
+        glossary=glossary,
+        promote_threshold=PROMOTE_THRESHOLD,
         stats={
             "total": TranslationCache.query.filter_by(lang=lang).count(),
             "reviewed": TranslationCache.query.filter_by(lang=lang, reviewed=True).count(),
+            "learned": LearnedGlossary.query.filter_by(lang=lang).count(),
         },
     )
 
@@ -274,6 +292,8 @@ def translations():
 @login_required
 @admin_required
 def update_translation(entry_id):
+    from app.services.i18n_translate import promote_to_glossary
+
     entry = TranslationCache.query.get_or_404(entry_id)
     action = request.form.get("action", "save")
     if action == "delete":
@@ -285,10 +305,32 @@ def update_translation(entry_id):
     new_text = request.form.get("translated_text", "").strip()
     if new_text:
         entry.translated_text = new_text
+        entry.engine = "manual"
     entry.reviewed = request.form.get("reviewed") == "on"
     db.session.commit()
-    flash("번역이 저장되었습니다." + (" (검수 완료 — 학습 예시로 우선 사용됩니다)" if entry.reviewed else ""), "success")
+    if entry.reviewed:
+        promote_to_glossary(
+            entry.source_text, entry.lang, entry.translated_text,
+            promoted_from="reviewed", hit_count=entry.hit_count or 0,
+        )
+    flash(
+        "번역이 저장되었습니다."
+        + (" (검수 완료 — 학습 용어집으로 승격되었습니다)" if entry.reviewed else ""),
+        "success",
+    )
     return redirect(url_for("admin.translations", lang=entry.lang, page=request.form.get("page", 1)))
+
+
+@admin_bp.route("/translations/glossary/<int:entry_id>", methods=["POST"])
+@login_required
+@admin_required
+def delete_learned_glossary(entry_id):
+    entry = LearnedGlossary.query.get_or_404(entry_id)
+    lang = entry.lang
+    db.session.delete(entry)
+    db.session.commit()
+    flash("학습 용어집 항목을 삭제했습니다.", "success")
+    return redirect(url_for("admin.translations", lang=lang))
 
 
 @admin_bp.route("/llm/test", methods=["POST"])

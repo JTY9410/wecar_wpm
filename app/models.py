@@ -200,8 +200,8 @@ class SyncLog(db.Model):
 
 
 class TranslationCache(db.Model):
-    """번역 캐시. 관리자가 오역을 수정하고 reviewed=True로 표시하면, 이후 번역 시
-    few-shot 예시에서 최우선으로 사용되어 자체 학습(self-learning) 효과를 낸다."""
+    """번역 캐시. hit_count≥3이면 LearnedGlossary로 자동 승격,
+    reviewed=True면 즉시 승격되어 자체 학습에 반영된다."""
     __tablename__ = "translation_cache"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -210,9 +210,27 @@ class TranslationCache(db.Model):
     lang = db.Column(db.String(5))
     translated_text = db.Column(db.Text)
     reviewed = db.Column(db.Boolean, default=False, nullable=False)
+    hit_count = db.Column(db.Integer, default=1, nullable=False)
+    engine = db.Column(db.String(20))  # google | gemini | hybrid | manual
     created_at = db.Column(db.DateTime, default=utcnow)
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
     __table_args__ = (db.UniqueConstraint("source_hash", "lang", name="uq_trans"),)
+
+
+class LearnedGlossary(db.Model):
+    """자체 학습 용어집 — 고빈도/검수 번역 승격본."""
+    __tablename__ = "learned_glossary"
+
+    id = db.Column(db.Integer, primary_key=True)
+    source_hash = db.Column(db.String(64), index=True, nullable=False)
+    source_text = db.Column(db.Text, nullable=False)
+    lang = db.Column(db.String(5), nullable=False)
+    translated_text = db.Column(db.Text, nullable=False)
+    promoted_from = db.Column(db.String(20), default="auto")
+    hit_count_at_promote = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=utcnow)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
+    __table_args__ = (db.UniqueConstraint("source_hash", "lang", name="uq_learned_glossary"),)
 
 
 class UploadHistory(db.Model):

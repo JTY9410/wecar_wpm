@@ -1,28 +1,30 @@
-"""글로벌 다국어 번역 + 로컬 캐시 (PRD §6.3).
+"""글로벌 다국어 번역 + 로컬 캐시 + 자체 학습 (PRD §6.3).
 
-- 고정 UI 문구는 app/i18n/{ko,en,ja}.json 에서 직접 로드한다 (사람이 검수한 번역).
-- 차명·낙찰 사고내역 등 자유 텍스트는 두 엔진을 조합해 번역하고 TranslationCache 에 캐시한다.
-  1) Google Cloud Translation API (관리자 LLM 설정에서 키 등록 시) — 넓은 커버리지의 1차 번역.
-  2) Gemini(llm_hub.GeminiProvider) — Google 번역 결과를 용어집/과거 캐시를 참고해 다듬는다(윤문).
-     Google 키가 없으면 Gemini가 직접 번역, 둘 다 없으면 원문 그대로 반환한다(그레이스풀 패스스루).
-- 같은 용어가 항상 같은 번역이 되도록, 고정 UI 사전(ko→lang)을 용어집으로 프롬프트에
-  포함하고, 과거 캐시된 번역도 few-shot 예시로 재사용해 톤을 일관되게 유지한다.
+파이프라인:
+  1) UI 사전 / 정적 차량 용어집 / LearnedGlossary
+  2) TranslationCache (hit 시 hit_count++, 임계치면 용어집 승격)
+  3) Google Cloud Translation 초벌 → Gemini 윤문
+  4) en/ja 결과에 Hangul이 남으면 캐시·승격하지 않음
+  5) hit_count ≥ PROMOTE_THRESHOLD 또는 reviewed → LearnedGlossary 승격
 """
 import hashlib
 import json
 import logging
 import os
+import re
 
 from config import Config
 from app.extensions import db
-from app.models import TranslationCache
+from app.models import LearnedGlossary, TranslationCache
 from app.services import google_translate
 
 logger = logging.getLogger(__name__)
 
 _I18N_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "i18n")
 _LANG_NAMES = {"en": "English", "ja": "Japanese"}
-_vehicle_glossary_cache: dict[str, dict] = {}
+_vehicle_glossary_cache = {}
+_HANGUL_RE = re.compile(r"[\uac00-\ud7a3]")
+PROMOTE_THRESHOLD = 3
 
 
 def load_pack(lang):
@@ -36,7 +38,6 @@ def load_pack(lang):
 
 
 def load_vehicle_glossary(lang):
-    """제조사·모델·등급 등 차량 계층 용어집 (ko → en/ja)."""
     if lang not in _LANG_NAMES:
         return {}
     if lang in _vehicle_glossary_cache:
@@ -51,36 +52,61 @@ def load_vehicle_glossary(lang):
     return data
 
 
+def _hash(text):
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _contains_hangul(text):
+    return bool(text and _HANGUL_RE.search(text))
+
+
+def _is_quality_ok(text, lang):
+    if not text or lang not in _LANG_NAMES:
+        return False
+    return not _contains_hangul(text)
+
+
+def _learned_lookup(text, lang):
+    row = LearnedGlossary.query.filter_by(source_hash=_hash(text), lang=lang).first()
+    if row and _is_quality_ok(row.translated_text, lang):
+        return row.translated_text
+    return None
+
+
 def _static_lookup(text, lang):
-    """정적 UI 사전·차량 용어집에 이미 있는 값이면 검수된 번역을 그대로 재사용."""
     vehicle = load_vehicle_glossary(lang).get(text)
     if vehicle:
         return vehicle
+    learned = _learned_lookup(text, lang)
+    if learned:
+        return learned
     ko_pack = load_pack("ko")
     for key, ko_value in ko_pack.items():
         if ko_value == text:
             target = load_pack(lang).get(key)
             if target:
                 return target
-    # 복합 문자열(예: "현대 그랜저HG 300")은 용어집 토큰을 순서대로 치환
     glossary = load_vehicle_glossary(lang)
     if glossary and any(token in text for token in glossary):
         out = text
         for src, dst in sorted(glossary.items(), key=lambda kv: len(kv[0]), reverse=True):
             if src and src in out:
                 out = out.replace(src, dst)
-        if out != text:
+        if out != text and _is_quality_ok(out, lang):
             return out
     return None
 
 
-def _hash(text):
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
-
-
 def _glossary_pairs(lang, limit=20):
-    """UI 사전 + 차량 용어집에서 few-shot 예시 추출 — 제조사/모델/등급 일관성 유지."""
-    pairs = list(load_vehicle_glossary(lang).items())[:12]
+    pairs = list(load_vehicle_glossary(lang).items())[:8]
+    learned_rows = (
+        LearnedGlossary.query.filter_by(lang=lang)
+        .order_by(LearnedGlossary.updated_at.desc())
+        .limit(8)
+        .all()
+    )
+    for r in learned_rows:
+        pairs.append((r.source_text, r.translated_text))
     ko_pack = load_pack("ko")
     target_pack = load_pack(lang)
     for k in ko_pack:
@@ -91,22 +117,25 @@ def _glossary_pairs(lang, limit=20):
     return pairs[:limit]
 
 
-def _cache_examples(lang, limit=5):
-    """과거 성공 번역 캐시를 few-shot 예시로 재사용 — 톤 일관성 학습 효과.
-
-    관리자가 검수(reviewed=True)한 번역을 최우선으로 사용해, 한 번 교정된
-    표현은 이후 모든 번역에 반영되는 자체 학습(self-learning) 효과를 낸다.
-    """
+def _cache_examples(lang, limit=8):
     rows = (
         TranslationCache.query.filter(
             TranslationCache.lang == lang,
             TranslationCache.source_text != TranslationCache.translated_text,
         )
-        .order_by(TranslationCache.reviewed.desc(), TranslationCache.id.desc())
+        .order_by(
+            TranslationCache.reviewed.desc(),
+            TranslationCache.hit_count.desc(),
+            TranslationCache.id.desc(),
+        )
         .limit(limit)
         .all()
     )
-    return [(r.source_text, r.translated_text) for r in rows]
+    return [
+        (r.source_text, r.translated_text)
+        for r in rows
+        if _is_quality_ok(r.translated_text, lang)
+    ]
 
 
 def _build_prompt(text, lang, draft=None):
@@ -135,7 +164,9 @@ def _build_prompt(text, lang, draft=None):
             f"Return ONLY the translation, with no quotes or extra notes.\n\n"
         )
         body = f"Text: {text}"
-    example_block = f"Reference terminology (Korean → {target}):\n{example_lines}\n\n" if example_lines else ""
+    example_block = (
+        f"Reference terminology (Korean → {target}):\n{example_lines}\n\n" if example_lines else ""
+    )
     return task + example_block + body
 
 
@@ -156,40 +187,111 @@ def _call_gemini(text, lang, draft=None):
 
 
 def _call_provider(text, lang):
-    """Google Translate로 1차 초벌 번역 후 Gemini로 다듬는다. 둘 다 없으면 원문 패스스루."""
     draft = google_translate.translate_text(text, lang)
     if draft:
         polished = _call_gemini(text, lang, draft=draft)
-        return polished or draft
+        if polished and _is_quality_ok(polished, lang):
+            return polished, "hybrid"
+        if _is_quality_ok(draft, lang):
+            return draft, "google"
+        return (polished or draft), ("hybrid" if polished else "google")
     direct = _call_gemini(text, lang)
-    return direct or text
+    if direct:
+        return direct, "gemini"
+    return text, "none"
+
+
+def promote_to_glossary(source_text, lang, translated_text, promoted_from="auto", hit_count=0):
+    if not source_text or lang not in _LANG_NAMES:
+        return None
+    if not _is_quality_ok(translated_text, lang):
+        return None
+    if translated_text == source_text:
+        return None
+    h = _hash(source_text)
+    row = LearnedGlossary.query.filter_by(source_hash=h, lang=lang).first()
+    if row:
+        row.translated_text = translated_text
+        row.promoted_from = promoted_from
+        row.hit_count_at_promote = max(row.hit_count_at_promote or 0, hit_count)
+    else:
+        row = LearnedGlossary(
+            source_hash=h,
+            source_text=source_text,
+            lang=lang,
+            translated_text=translated_text,
+            promoted_from=promoted_from,
+            hit_count_at_promote=hit_count,
+        )
+        db.session.add(row)
+    try:
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        logger.warning("Glossary promote failed: %s", exc)
+        return None
+    return row
+
+
+def _maybe_promote(row):
+    if not row or not _is_quality_ok(row.translated_text, row.lang):
+        return
+    if row.reviewed:
+        promote_to_glossary(
+            row.source_text, row.lang, row.translated_text,
+            promoted_from="reviewed", hit_count=row.hit_count or 0,
+        )
+        return
+    if (row.hit_count or 0) >= PROMOTE_THRESHOLD:
+        promote_to_glossary(
+            row.source_text, row.lang, row.translated_text,
+            promoted_from="auto", hit_count=row.hit_count or 0,
+        )
 
 
 def translate(text, lang):
-    """Translate free-form text with local cache. Falls back to source text."""
     if not text or lang == "ko" or lang not in _LANG_NAMES:
         return text
     if text in load_pack(lang).values():
-        # Already-localized UI string (e.g. t('unknown')) piped through |tr —
-        # don't re-translate it as if it were Korean source text.
         return text
     static = _static_lookup(text, lang)
     if static:
         return static
+
     h = _hash(text)
     row = TranslationCache.query.filter_by(source_hash=h, lang=lang).first()
     if row:
-        return row.translated_text
+        if not _is_quality_ok(row.translated_text, lang):
+            try:
+                db.session.delete(row)
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+        else:
+            row.hit_count = (row.hit_count or 0) + 1
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+            _maybe_promote(row)
+            return row.translated_text
 
-    translated = _call_provider(text, lang)
-    if translated == text:
-        # Provider unavailable/failed — passthrough. Don't cache it, so a
-        # later successful translation isn't permanently masked.
+    translated, engine = _call_provider(text, lang)
+    if translated == text or not _is_quality_ok(translated, lang):
         return translated
+
     try:
-        db.session.add(TranslationCache(source_hash=h, source_text=text, lang=lang,
-                                        translated_text=translated))
+        row = TranslationCache(
+            source_hash=h,
+            source_text=text,
+            lang=lang,
+            translated_text=translated,
+            hit_count=1,
+            engine=engine,
+        )
+        db.session.add(row)
         db.session.commit()
+        _maybe_promote(row)
     except Exception as exc:
         db.session.rollback()
         logger.warning("Translation cache write failed: %s", exc)

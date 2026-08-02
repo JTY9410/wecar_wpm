@@ -4,8 +4,9 @@
     <a href="{{ url_for('admin.dashboard') }}" class="text-muted small">← 대시보드</a>
     <h2 class="mb-1 mt-2">번역 캐시 관리</h2>
     <p class="text-muted mb-0">
-        AI가 번역한 결과를 확인하고 필요하면 직접 교정하세요. <strong>검수 완료</strong>로 표시하면
-        이후 같은 표현을 번역할 때 최우선 예시로 학습되어(자체 학습) 품질이 계속 좋아집니다.
+        Google 번역 + Gemini로 번역한 결과를 확인하고 교정하세요.
+        <strong>{{ promote_threshold }}회</strong> 이상 동일 번역이 재사용되면 학습 용어집으로 자동 승격되고,
+        <strong>검수 완료</strong> 시 즉시 승격됩니다.
     </p>
 </div>
 
@@ -15,19 +16,57 @@
 </ul>
 
 <div class="row g-3 mb-3">
-    <div class="col-6 col-md-3">
+    <div class="col-4 col-md-3">
         <div class="glass-card p-3">
             <p class="text-muted small mb-1">전체 캐시</p>
             <p class="h4 mb-0">{{ "{:,}".format(stats.total) }}</p>
         </div>
     </div>
-    <div class="col-6 col-md-3">
+    <div class="col-4 col-md-3">
         <div class="glass-card p-3">
-            <p class="text-muted small mb-1">검수 완료 (학습 예시)</p>
+            <p class="text-muted small mb-1">검수 완료</p>
             <p class="h4 mb-0 text-success">{{ "{:,}".format(stats.reviewed) }}</p>
         </div>
     </div>
+    <div class="col-4 col-md-3">
+        <div class="glass-card p-3">
+            <p class="text-muted small mb-1">학습 용어집</p>
+            <p class="h4 mb-0 text-primary">{{ "{:,}".format(stats.learned) }}</p>
+        </div>
+    </div>
 </div>
+
+{% if glossary %}
+<section class="mb-4">
+    <h3 class="h5 mb-2">학습 용어집 (자동/검수 승격)</h3>
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>원문</th>
+                    <th>번역</th>
+                    <th>출처</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for g in glossary %}
+                <tr>
+                    <td>{{ g.source_text }}</td>
+                    <td>{{ g.translated_text }}</td>
+                    <td><span class="badge text-bg-light">{{ g.promoted_from }} · {{ g.hit_count_at_promote or 0 }}회</span></td>
+                    <td class="text-end">
+                        <form method="POST" action="{{ url_for('admin.delete_learned_glossary', entry_id=g.id) }}" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('학습 용어집에서 삭제할까요?')">삭제</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
 
 <form method="GET" class="mb-3 d-flex gap-2 flex-wrap">
     <input type="hidden" name="lang" value="{{ lang }}">
@@ -41,7 +80,10 @@
     <article class="glass-card p-3 mb-2 {{ 'border border-success' if e.reviewed }}">
         <form method="POST" action="{{ url_for('admin.update_translation', entry_id=e.id) }}" class="d-flex flex-column gap-2">
             <input type="hidden" name="page" value="{{ pagination.page }}">
-            <div class="small text-muted">원문 (KO)</div>
+            <div class="d-flex justify-content-between small text-muted">
+                <span>원문 (KO)</span>
+                <span>{{ e.engine or '-' }} · {{ e.hit_count or 1 }}회</span>
+            </div>
             <div class="fw-semibold">{{ e.source_text }}</div>
             <div class="small text-muted">번역 ({{ lang|upper }})</div>
             <textarea name="translated_text" class="form-control form-control-sm" rows="2">{{ e.translated_text }}</textarea>

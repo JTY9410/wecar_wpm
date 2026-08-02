@@ -51,7 +51,7 @@ def test_load_pack():
     assert i18n_translate.load_pack("xx")  # falls back to ko
 
 
-def test_glossary_pairs_reuse_static_ui_dictionary():
+def test_glossary_pairs_reuse_static_ui_dictionary(app, db):
     pairs = i18n_translate._glossary_pairs("en")
     assert ("로그인", "Login") in pairs
     pairs_ja = i18n_translate._glossary_pairs("ja")
@@ -86,6 +86,34 @@ def test_translate_uses_google_draft_when_configured(app, db, monkeypatch):
     )
     out = translate("프론트펜더 판금 상세", "en")
     assert out == "Google Draft"
+
+
+def test_hangul_result_is_not_cached(app, db, monkeypatch):
+    monkeypatch.setattr(
+        i18n_translate, "_call_provider",
+        lambda text, lang: ("프론트펜더", "google"),
+    )
+    out = translate("프론트펜더XYZ", "en")
+    assert out == "프론트펜더"
+    from app.models import TranslationCache
+    assert TranslationCache.query.filter_by(lang="en").count() == 0
+
+
+def test_auto_promote_to_learned_glossary_after_threshold(app, db, monkeypatch):
+    monkeypatch.setattr(
+        i18n_translate, "_call_provider",
+        lambda text, lang: ("Front fender detail", "hybrid"),
+    )
+    src = "프론트펜더 판금 자동학습"
+    for _ in range(i18n_translate.PROMOTE_THRESHOLD):
+        assert translate(src, "en") == "Front fender detail"
+    from app.models import LearnedGlossary, TranslationCache
+    row = TranslationCache.query.filter_by(lang="en").first()
+    assert row is not None
+    assert row.hit_count >= i18n_translate.PROMOTE_THRESHOLD
+    learned = LearnedGlossary.query.filter_by(lang="en", source_text=src).first()
+    assert learned is not None
+    assert learned.promoted_from == "auto"
 
 
 def test_translate_polishes_google_draft_with_gemini(app, db, monkeypatch):
