@@ -78,6 +78,14 @@ def test_vehicle_glossary_translates_maker_model_trim(app, db):
     assert TranslationCache.query.filter_by(lang="en").count() == 0
 
 
+def test_quality_ok_rejects_ui_dump_and_length_explosion():
+    ok = i18n_translate._is_quality_ok
+    assert ok("ヒュンダイ", "ja", "현대")
+    assert not ok("【車両検索】\nヒュンダイ", "ja", "현대")
+    assert not ok("x" * 500, "ja", "아우디")
+    assert not ok("한글남음", "en", "test")
+
+
 def test_translate_uses_google_draft_when_configured(app, db, monkeypatch):
     """Google 번역 키만 있으면 초벌 번역을 그대로 사용(Gemini 미설정 시)."""
     monkeypatch.setattr(

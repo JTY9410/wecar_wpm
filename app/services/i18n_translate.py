@@ -60,16 +60,46 @@ def _contains_hangul(text):
     return bool(text and _HANGUL_RE.search(text))
 
 
-def _is_quality_ok(text, lang):
+# Gemini가 UI 섹션 덤프를 반환한 사례 (【車両検索】 등) — 짧은 라벨 번역에 섞이면 안 됨
+_BAD_MARKERS = (
+    "【",
+    "】",
+    "Reference terminology",
+    "Korean source:",
+    "Polish it into",
+)
+
+
+def _is_quality_ok(text, lang, source=None):
+    """en/ja 번역 품질 가드. Hangul 잔존·개행 폭발·UI 덤프·과도한 길이 거부."""
     if not text or lang not in _LANG_NAMES:
         return False
-    return not _contains_hangul(text)
+    if _contains_hangul(text):
+        return False
+    if any(m in text for m in _BAD_MARKERS):
+        return False
+    src = source or ""
+    if ("\n" in text or "\r" in text) and "\n" not in src and "\r" not in src:
+        return False
+    if src:
+        if len(text) > max(120, len(src) * 5):
+            return False
+    elif len(text) > 300:
+        return False
+    return True
 
 
 def _learned_lookup(text, lang):
     row = LearnedGlossary.query.filter_by(source_hash=_hash(text), lang=lang).first()
-    if row and _is_quality_ok(row.translated_text, lang):
+    if not row:
+        return None
+    if _is_quality_ok(row.translated_text, lang, text):
         return row.translated_text
+    try:
+        db.session.delete(row)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
     return None
 
 
@@ -92,7 +122,7 @@ def _static_lookup(text, lang):
         for src, dst in sorted(glossary.items(), key=lambda kv: len(kv[0]), reverse=True):
             if src and src in out:
                 out = out.replace(src, dst)
-        if out != text and _is_quality_ok(out, lang):
+        if out != text and _is_quality_ok(out, lang, text):
             return out
     return None
 
@@ -102,11 +132,14 @@ def _glossary_pairs(lang, limit=20):
     learned_rows = (
         LearnedGlossary.query.filter_by(lang=lang)
         .order_by(LearnedGlossary.updated_at.desc())
-        .limit(8)
+        .limit(16)
         .all()
     )
     for r in learned_rows:
-        pairs.append((r.source_text, r.translated_text))
+        if _is_quality_ok(r.translated_text, lang, r.source_text):
+            pairs.append((r.source_text, r.translated_text))
+        if len(pairs) >= limit:
+            return pairs[:limit]
     ko_pack = load_pack("ko")
     target_pack = load_pack(lang)
     for k in ko_pack:
@@ -128,14 +161,14 @@ def _cache_examples(lang, limit=8):
             TranslationCache.hit_count.desc(),
             TranslationCache.id.desc(),
         )
-        .limit(limit)
+        .limit(limit * 3)
         .all()
     )
     return [
         (r.source_text, r.translated_text)
         for r in rows
-        if _is_quality_ok(r.translated_text, lang)
-    ]
+        if _is_quality_ok(r.translated_text, lang, r.source_text)
+    ][:limit]
 
 
 def _build_prompt(text, lang, draft=None):
@@ -201,21 +234,22 @@ def _call_provider(text, lang, polish=None):
     if draft:
         if _should_polish(text, polish):
             polished = _call_gemini(text, lang, draft=draft)
-            if polished and _is_quality_ok(polished, lang):
+            if polished and _is_quality_ok(polished, lang, text):
                 return polished, "hybrid"
-            if _is_quality_ok(draft, lang):
+            if _is_quality_ok(draft, lang, text):
                 return draft, "google"
-            return (polished or draft), ("hybrid" if polished else "google")
-        if _is_quality_ok(draft, lang):
+            # 품질 불합격이면 원문 유지 (오염 캐시 방지)
+            return text, "none"
+        if _is_quality_ok(draft, lang, text):
             return draft, "google"
         # Google 초벌에 Hangul이 남은 경우에만 Gemini 재시도
         polished = _call_gemini(text, lang, draft=draft)
-        if polished and _is_quality_ok(polished, lang):
+        if polished and _is_quality_ok(polished, lang, text):
             return polished, "hybrid"
-        return draft, "google"
+        return text, "none"
     if _should_polish(text, polish) or polish is not False:
         direct = _call_gemini(text, lang)
-        if direct:
+        if direct and _is_quality_ok(direct, lang, text):
             return direct, "gemini"
     return text, "none"
 
@@ -223,7 +257,7 @@ def _call_provider(text, lang, polish=None):
 def promote_to_glossary(source_text, lang, translated_text, promoted_from="auto", hit_count=0):
     if not source_text or lang not in _LANG_NAMES:
         return None
-    if not _is_quality_ok(translated_text, lang):
+    if not _is_quality_ok(translated_text, lang, source_text):
         return None
     if translated_text == source_text:
         return None
@@ -253,7 +287,7 @@ def promote_to_glossary(source_text, lang, translated_text, promoted_from="auto"
 
 
 def _maybe_promote(row):
-    if not row or not _is_quality_ok(row.translated_text, row.lang):
+    if not row or not _is_quality_ok(row.translated_text, row.lang, row.source_text):
         return
     if row.reviewed:
         promote_to_glossary(
@@ -285,7 +319,7 @@ def translate(text, lang, *, remote=True, polish=None):
     h = _hash(text)
     row = TranslationCache.query.filter_by(source_hash=h, lang=lang).first()
     if row:
-        if not _is_quality_ok(row.translated_text, lang):
+        if not _is_quality_ok(row.translated_text, lang, text):
             try:
                 db.session.delete(row)
                 db.session.commit()
@@ -305,7 +339,7 @@ def translate(text, lang, *, remote=True, polish=None):
         return text
 
     translated, engine = _call_provider(text, lang, polish=polish)
-    if translated == text or not _is_quality_ok(translated, lang):
+    if translated == text or not _is_quality_ok(translated, lang, text):
         return translated
 
     try:
