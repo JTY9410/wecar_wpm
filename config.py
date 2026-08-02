@@ -16,7 +16,7 @@ def _abs(path: str) -> str:
 
 class Config:
     FLASK_ENV = os.getenv("FLASK_ENV", "development")
-    APP_NAME = os.getenv("APP_NAME", "wecar WPM")
+    APP_NAME = os.getenv("APP_NAME", "도매시세분석")
     SERVICE_ID = os.getenv("SERVICE_ID", "wecarcar1")
     BRAND_MARK = os.getenv("BRAND_MARK", "WPM")
     SECRET_KEY = os.getenv("SECRET_KEY", "change-me")

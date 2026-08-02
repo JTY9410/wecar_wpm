@@ -1,0 +1,180 @@
+<!-- [UI Flow: GET /admin/ai-learning — 자체학습 통계 · 마일스톤 CRUD] -->
+{% extends "base.html" %}
+{% block page_title %}AI학습진행도{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
+  <div>
+    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-sm btn-outline-secondary mb-2">← 관리자</a>
+    <h1 class="h4 mb-1">AI학습진행도 관리</h1>
+    <p class="text-muted small mb-0">자체 학습(Tier 1) 진행 과정을 기록·관리합니다.</p>
+  </div>
+  <button type="button" id="addMilestoneBtn" class="btn btn-primary btn-sm">이력 추가</button>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="glass-card p-3">
+      <p class="small text-muted mb-1">자체 AI 모델</p>
+      <p class="h5 mb-0">{{ '학습됨' if stats.model_exists else '미학습' }}</p>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="glass-card p-3">
+      <p class="small text-muted mb-1">재학습·업로드 누적</p>
+      <p class="h5 mb-0">{{ stats.retrain_count }}</p>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="glass-card p-3">
+      <p class="small text-muted mb-1">경매 학습 표본</p>
+      <p class="h5 mb-0">{{ stats.training_samples }}</p>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="glass-card p-3">
+      <p class="small text-muted mb-1">최근 활동</p>
+      <p class="small fw-semibold mb-0">{{ stats.last_retrain_at.strftime('%Y-%m-%d %H:%M') if stats.last_retrain_at else '없음' }}</p>
+    </div>
+  </div>
+</div>
+
+<div class="glass-card p-3 mb-4">
+  <h5 class="mb-3">자체 분석 전환율</h5>
+  <div class="d-flex align-items-center gap-3 mb-2">
+    <div class="progress flex-grow-1" style="height: 12px;">
+      <div class="progress-bar bg-success" style="width: {{ stats.self_sufficiency_pct }}%;"></div>
+    </div>
+    <span class="fw-bold">{{ stats.self_sufficiency_pct }}%</span>
+  </div>
+  <p class="text-muted small mb-0">
+    경매 표본 {{ stats.local_analysis_count }}건 · Gemini 리포트 {{ stats.gemini_analysis_count }}건 ·
+    캐시 {{ stats.gemini_reports_cached }}건
+  </p>
+</div>
+
+<div class="glass-card p-0 overflow-hidden">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0" id="milestoneTable">
+      <thead>
+        <tr>
+          <th>기록일</th>
+          <th>단계</th>
+          <th>제목</th>
+          <th>설명</th>
+          <th>작업</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in milestones %}
+        <tr data-id="{{ m.id }}">
+          <td>{{ m.recorded_date.strftime('%Y-%m-%d') }}</td>
+          <td>
+            <select class="form-select form-select-sm" data-field="phase" disabled>
+              {% for p in phases %}
+              <option value="{{ p }}" {{ 'selected' if m.phase == p }}>{{ p }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td><input type="text" class="form-control form-control-sm" data-field="title" value="{{ m.title }}" readonly></td>
+          <td><textarea class="form-control form-control-sm" data-field="description" rows="2" readonly>{{ m.description or '' }}</textarea></td>
+          <td>
+            <div class="d-flex gap-1 flex-wrap">
+              <button type="button" class="btn btn-sm btn-outline-secondary edit-btn">수정</button>
+              <button type="button" class="btn btn-sm btn-primary save-btn d-none">저장</button>
+              <button type="button" class="btn btn-sm btn-outline-danger delete-btn">삭제</button>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-5">기록된 학습 이력이 없습니다.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const milestoneTable = document.getElementById('milestoneTable');
+const PHASES = {{ phases | tojson }};
+const showToast = (msg, variant) => toast(msg, variant === 'success' ? 'success' : 'danger');
+
+function phaseOptions(selected) {
+  return PHASES.map(p => `<option value="${p}" ${p === selected ? 'selected' : ''}>${p}</option>`).join('');
+}
+
+document.getElementById('addMilestoneBtn').addEventListener('click', () => {
+  const tbody = milestoneTable.querySelector('tbody');
+  const emptyRow = tbody.querySelector('tr:not([data-id])');
+  if (emptyRow) emptyRow.remove();
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>${new Date().toISOString().slice(0, 10)}</td>
+    <td><select class="form-select form-select-sm" data-field="phase">${phaseOptions('전환중')}</select></td>
+    <td><input type="text" class="form-control form-control-sm" data-field="title" placeholder="제목"></td>
+    <td><textarea class="form-control form-control-sm" data-field="description" rows="2" placeholder="설명"></textarea></td>
+    <td class="d-flex gap-1">
+      <button type="button" class="btn btn-sm btn-primary save-btn">저장</button>
+      <button type="button" class="btn btn-sm btn-outline-danger delete-btn">취소</button>
+    </td>`;
+  tbody.prepend(tr);
+});
+
+milestoneTable.addEventListener('click', async (e) => {
+  const row = e.target.closest('tr');
+  if (!row) return;
+  const rowId = row.dataset.id;
+
+  if (e.target.classList.contains('edit-btn')) {
+    row.querySelectorAll('[data-field]').forEach(el => { el.readOnly = false; el.disabled = false; });
+    e.target.classList.add('d-none');
+    row.querySelector('.save-btn').classList.remove('d-none');
+  }
+
+  if (e.target.classList.contains('save-btn')) {
+    const payload = {};
+    row.querySelectorAll('[data-field]').forEach(el => { payload[el.dataset.field] = el.value; });
+    const isNew = !rowId;
+    try {
+      const resp = await fetch(isNew ? '/admin/ai-learning' : `/admin/ai-learning/${rowId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await resp.json();
+      if (data.success) {
+        showToast('저장되었습니다.', 'success');
+        if (isNew) location.reload();
+        else {
+          row.querySelectorAll('[data-field]').forEach(el => { el.readOnly = true; el.disabled = true; });
+          e.target.classList.add('d-none');
+          row.querySelector('.edit-btn').classList.remove('d-none');
+        }
+      } else {
+        showToast(data.error || '저장에 실패했습니다.', 'danger');
+      }
+    } catch (err) {
+      showToast('네트워크 오류가 발생했습니다.', 'danger');
+    }
+  }
+
+  if (e.target.classList.contains('delete-btn')) {
+    if (!rowId) { row.remove(); return; }
+    if (!confirm('해당 이력을 삭제하시겠습니까?')) return;
+    try {
+      const resp = await fetch(`/admin/ai-learning/${rowId}`, { method: 'DELETE' });
+      const data = await resp.json();
+      if (data.success) {
+        row.remove();
+        showToast('삭제되었습니다.', 'success');
+      } else {
+        showToast(data.error || '삭제에 실패했습니다.', 'danger');
+      }
+    } catch (err) {
+      showToast('네트워크 오류가 발생했습니다.', 'danger');
+    }
+  }
+});
+</script>
+{% endblock %}

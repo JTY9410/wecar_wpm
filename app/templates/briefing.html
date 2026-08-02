@@ -1,0 +1,147 @@
+<!-- [UI Flow: GET /briefing — 주간 경매 낙찰가·표본수 전주대비 분석] -->
+{% extends "base.html" %}
+{% block page_title %}{{ t('nav_briefing') }}{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <p class="section-kicker mb-1">BRIEFING</p>
+  <h1 class="h4 mb-1">{{ t('briefing_title') }}</h1>
+  <p class="text-muted small mb-0">{{ t('briefing_subtitle') }}</p>
+</div>
+
+{% if not data.available %}
+<div class="glass-card p-4 text-center text-muted">{{ data.reason }}</div>
+{% else %}
+
+{% if data.periods|length > 1 %}
+<form method="GET" class="mb-3 d-flex align-items-center gap-2 flex-wrap">
+  <label class="small text-muted fw-semibold">{{ t('briefing_period') }}</label>
+  <select name="period" class="form-select form-select-sm" style="width:auto; min-width:12rem;" onchange="this.form.submit()">
+    {% for p in data.periods %}
+    <option value="{{ p }}" {{ 'selected' if p == data.current_period }}>{{ p }}</option>
+    {% endfor %}
+  </select>
+</form>
+{% endif %}
+
+<p class="small text-muted mb-3">
+  {{ t('briefing_this_week') }} <strong>{{ data.current_period }}</strong>
+  {% if data.previous_period %} vs {{ t('briefing_prev_week') }} <strong>{{ data.previous_period }}</strong>
+  {% else %} ({{ t('briefing_no_prev') }}){% endif %}
+</p>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="glass-card p-3">
+      <p class="small text-muted mb-1">{{ t('briefing_total_cur') }}</p>
+      <p class="h4 mb-0">{{ data.total_cur }}</p>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="glass-card p-3">
+      <p class="small text-muted mb-1">{{ t('briefing_total_prev') }}</p>
+      <p class="h4 mb-0">{{ data.total_prev }}</p>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="glass-card p-3">
+      <p class="small text-muted mb-1">{{ t('briefing_total_pct') }}</p>
+      <p class="h4 mb-0">{{ '%+.1f'|format(data.total_pct) + '%' if data.total_pct is not none else '-' }}</p>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="glass-card p-3">
+      <p class="small text-muted mb-1">{{ t('briefing_alerts') }}</p>
+      <p class="h4 mb-0">{{ data.price_alerts|length }} / {{ data.surge_alerts|length }}</p>
+    </div>
+  </div>
+</div>
+
+<div class="glass-card p-3 mb-3">
+  <h5 class="mb-3">{{ t('briefing_price_alerts') }} ({{ data.price_threshold }}%+)</h5>
+  {% if data.price_alerts %}
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead><tr>
+        <th>{{ t('maker') }}</th><th>{{ t('model') }}</th>
+        <th>{{ t('briefing_cur_price') }}</th><th>{{ t('briefing_prev_price') }}</th><th>{{ t('mom') }}</th>
+      </tr></thead>
+      <tbody>
+        {% for r in data.price_alerts %}
+        <tr>
+          <td>{{ r.maker_name|tr }}</td>
+          <td>{{ r.model_name|tr }}</td>
+          <td>{{ "{:,}".format(r.cur_price) if r.cur_price is not none else '-' }}</td>
+          <td>{{ "{:,}".format(r.prev_price) if r.prev_price is not none else '-' }}</td>
+          <td>
+            {% if r.price_pct is not none %}
+            <span class="badge {{ 'text-bg-danger' if r.price_pct > 0 else 'text-bg-success' }}">{{ '%+.1f'|format(r.price_pct) }}%</span>
+            {% else %}-{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-muted small mb-0">{{ t('briefing_no_price_alerts') }}</p>
+  {% endif %}
+</div>
+
+<div class="glass-card p-3 mb-3">
+  <h5 class="mb-3">{{ t('briefing_surge_alerts') }} ({{ data.surge_threshold }}%+)</h5>
+  {% if data.surge_alerts %}
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead><tr>
+        <th>{{ t('maker') }}</th><th>{{ t('model') }}</th>
+        <th>{{ t('briefing_cur_count') }}</th><th>{{ t('briefing_prev_count') }}</th><th>{{ t('mom') }}</th>
+      </tr></thead>
+      <tbody>
+        {% for r in data.surge_alerts %}
+        <tr>
+          <td>{{ r.maker_name|tr }}</td>
+          <td>{{ r.model_name|tr }}</td>
+          <td>{{ r.cur_count }}</td>
+          <td>{{ r.prev_count }}</td>
+          <td>
+            {% if r.new_entry %}<span class="badge text-bg-warning">{{ t('briefing_new') }}</span>
+            {% elif r.count_pct is not none %}<span class="badge text-bg-danger">{{ '%+.1f'|format(r.count_pct) }}%</span>
+            {% else %}-{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-muted small mb-0">{{ t('briefing_no_surge_alerts') }}</p>
+  {% endif %}
+</div>
+
+<div class="glass-card p-3">
+  <h5 class="mb-3">{{ t('briefing_all_rows') }}</h5>
+  <div class="table-responsive data-scroll">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr>
+        <th>{{ t('maker') }}</th><th>{{ t('model') }}</th>
+        <th>{{ t('briefing_cur_price') }}</th><th>{{ t('briefing_prev_price') }}</th><th>{{ t('mom') }}</th>
+        <th>{{ t('briefing_cur_count') }}</th><th>{{ t('briefing_prev_count') }}</th>
+      </tr></thead>
+      <tbody>
+        {% for r in data.rows %}
+        <tr>
+          <td>{{ r.maker_name|tr }}</td>
+          <td>{{ r.model_name|tr }}</td>
+          <td>{{ "{:,}".format(r.cur_price) if r.cur_price is not none else '-' }}</td>
+          <td>{{ "{:,}".format(r.prev_price) if r.prev_price is not none else '-' }}</td>
+          <td>{{ '%+.1f'|format(r.price_pct) + '%' if r.price_pct is not none else '-' }}</td>
+          <td>{{ r.cur_count }}</td>
+          <td>{{ r.prev_count }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

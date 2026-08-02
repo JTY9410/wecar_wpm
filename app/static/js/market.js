@@ -161,6 +161,11 @@
     return `<span class="${cls}">${arrow} ${Math.abs(n)}%</span>`;
   }
 
+  g("f-export").onclick = () => {
+    const f = filters();
+    window.location.href = "/api/export/grid?" + qs(f);
+  };
+
   g("f-search").onclick = async () => {
     const f = filters();
     if (!f.maker) return toast(t("select_maker"), "warning");

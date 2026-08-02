@@ -58,6 +58,12 @@
       </span>
       <span class="side-rail-label">{{ t('nav_market') }}</span>
     </a>
+    <a href="{{ url_for('briefing.index') }}" class="side-rail-item {{ 'active' if ep and ep.startswith('briefing.') }}" title="{{ t('nav_briefing') }}">
+      <span class="side-rail-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h10M4 18h13"/></svg>
+      </span>
+      <span class="side-rail-label">{{ t('nav_briefing') }}</span>
+    </a>
     {% if current_user.is_admin %}
     <a href="{{ url_for('admin.dashboard') }}" class="side-rail-item {{ 'active' if ep == 'admin.dashboard' }}" title="{{ t('admin') }}">
       <span class="side-rail-icon" aria-hidden="true">
@@ -76,6 +82,12 @@
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="4"/></svg>
       </span>
       <span class="side-rail-label">AI</span>
+    </a>
+    <a href="{{ url_for('admin.ai_learning') }}" class="side-rail-item {{ 'active' if ep == 'admin.ai_learning' }}" title="AI학습">
+      <span class="side-rail-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l7 4v6c0 4-3 7-7 8-4-1-7-4-7-8V7l7-4z"/></svg>
+      </span>
+      <span class="side-rail-label">학습</span>
     </a>
     {% endif %}
   </nav>
@@ -127,6 +139,7 @@
 {% if current_user.is_authenticated %}
 <nav class="mobile-bottom-nav d-lg-none" aria-label="{{ t('mobile_menu') }}">
   <a href="{{ url_for('market.index') }}" class="mobile-nav-item {{ 'active' if ep and ep.startswith('market.') }}">{{ t('nav_market') }}</a>
+  <a href="{{ url_for('briefing.index') }}" class="mobile-nav-item {{ 'active' if ep and ep.startswith('briefing.') }}">{{ t('nav_briefing') }}</a>
   {% if current_user.is_admin %}
   <a href="{{ url_for('admin.dashboard') }}" class="mobile-nav-item {{ 'active' if ep == 'admin.dashboard' }}">{{ t('admin') }}</a>
   <a href="{{ url_for('admin.users') }}" class="mobile-nav-item {{ 'active' if ep == 'admin.users' }}">{{ t('users') }}</a>

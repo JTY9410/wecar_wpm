@@ -69,6 +69,7 @@ def create_app(config_class=Config):
     from app.routes.api import api_bp
     from app.routes.codes import codes_bp
     from app.routes.wholesale import wholesale_bp
+    from app.routes.briefing import briefing_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(market_bp)
@@ -77,6 +78,7 @@ def create_app(config_class=Config):
     app.register_blueprint(api_bp)
     app.register_blueprint(codes_bp)
     app.register_blueprint(wholesale_bp)
+    app.register_blueprint(briefing_bp)
 
     @app.route("/set-lang/<lang>")
     def set_lang(lang):

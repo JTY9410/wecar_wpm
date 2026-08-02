@@ -1,7 +1,7 @@
 import os
 import re
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from flask import (Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for)
 from flask_login import current_user, login_required
@@ -10,6 +10,7 @@ from werkzeug.utils import secure_filename
 from app.decorators import admin_required
 from app.extensions import db
 from app.models import (
+    AiLearningMilestone,
     AuctionRecord,
     LearnedGlossary,
     LLMConfig,
@@ -17,6 +18,7 @@ from app.models import (
     TranslationCache,
     UploadHistory,
 )
+from app.services.ai_learning import get_progress_stats, list_milestones, seed_default_milestone
 from app.services import google_translate, market_query, rag_store
 from app.services.excel_pipeline import ExcelValidationError, process_weekly_upload
 from app.services.llm_hub import (
@@ -420,3 +422,59 @@ def users_revoke(user_id):
     user.is_approved = False
     db.session.commit()
     return jsonify({"ok": True, "user_id": user.id, "is_approved": False})
+
+
+@admin_bp.route("/ai-learning")
+@login_required
+@admin_required
+def ai_learning():
+    seed_default_milestone()
+    return render_template(
+        "admin_ai_learning.html",
+        stats=get_progress_stats(),
+        milestones=list_milestones(),
+        phases=["외부AI 의존", "전환중", "자체학습 완료"],
+    )
+
+
+@admin_bp.route("/ai-learning", methods=["POST"])
+@login_required
+@admin_required
+def create_milestone():
+    data = request.get_json(silent=True) or {}
+    title = (data.get("title") or "").strip()
+    if not title:
+        return jsonify({"success": False, "error": "제목을 입력해주세요."}), 400
+    row = AiLearningMilestone(
+        recorded_date=date.today(),
+        phase=(data.get("phase") or "전환중").strip(),
+        title=title,
+        description=(data.get("description") or "").strip(),
+        created_by=current_user.id,
+    )
+    db.session.add(row)
+    db.session.commit()
+    return jsonify({"success": True, "id": row.id})
+
+
+@admin_bp.route("/ai-learning/<int:row_id>", methods=["POST"])
+@login_required
+@admin_required
+def update_milestone(row_id):
+    row = AiLearningMilestone.query.get_or_404(row_id)
+    data = request.get_json(silent=True) or {}
+    row.title = (data.get("title") or row.title).strip()
+    row.phase = (data.get("phase") or row.phase).strip()
+    row.description = (data.get("description") or "").strip()
+    db.session.commit()
+    return jsonify({"success": True})
+
+
+@admin_bp.route("/ai-learning/<int:row_id>", methods=["DELETE"])
+@login_required
+@admin_required
+def delete_milestone(row_id):
+    row = AiLearningMilestone.query.get_or_404(row_id)
+    db.session.delete(row)
+    db.session.commit()
+    return jsonify({"success": True})

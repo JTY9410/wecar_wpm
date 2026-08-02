@@ -254,3 +254,17 @@ class LLMConfig(db.Model):
     is_active = db.Column(db.Boolean, default=False)
     model_name = db.Column(db.String(80))
     api_key = db.Column(db.Text)
+
+
+class AiLearningMilestone(db.Model):
+    """AI학습진행도 — 외부 AI 의존에서 자체 학습으로의 전환 기록."""
+    __tablename__ = "ai_learning_milestone"
+
+    id = db.Column(db.Integer, primary_key=True)
+    recorded_date = db.Column(db.Date, nullable=False)
+    phase = db.Column(db.String(32), nullable=False, default="외부AI 의존")
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    created_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    created_at = db.Column(db.DateTime, default=utcnow)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)

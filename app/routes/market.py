@@ -1,9 +1,10 @@
 import logging
 
-from flask import Blueprint, jsonify, render_template, request, session
+from flask import Blueprint, jsonify, render_template, request, send_file, session
 from flask_login import login_required
 
 from app.services import llm_hub, market_query
+from app.services.excel_export import export_grid_excel
 from app.services.i18n_translate import load_pack
 
 logger = logging.getLogger(__name__)
@@ -171,3 +172,15 @@ def samples():
         accident_free=request.args.get("accident_free"),
         lang=_lang(),
     ))
+
+
+@market_bp.route("/api/export/grid")
+@login_required
+def export_grid():
+    buf = export_grid_excel(request.args)
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name="wholesale_market_grid.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
