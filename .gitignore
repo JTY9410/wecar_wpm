@@ -5,3 +5,8 @@ __pycache__/
 instance/
 .env
 *.pkl
+.DS_Store
+*_크롤링데이터.csv
+*.csv
+!requirements*.txt
+!app/i18n/*.json
