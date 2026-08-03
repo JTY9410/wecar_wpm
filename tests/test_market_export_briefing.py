@@ -11,15 +11,29 @@ def _seed_auction(db):
     db.session.add_all([
         AuctionRecord(
             week_no="2026-W30", maker="현대", model_name="그랜저",
+            mdetail_name="그랜저 IG", grade_name="가솔린 2.5", gdetail_name="익스클루시브",
             hammer_price=2500, car_year=2020, km_bin="3~4.5만", fuel="가솔린",
         ),
         AuctionRecord(
             week_no="2026-W30", maker="현대", model_name="그랜저",
+            mdetail_name="그랜저 IG", grade_name="가솔린 2.5", gdetail_name="익스클루시브",
             hammer_price=2600, car_year=2020, km_bin="3~4.5만", fuel="가솔린",
         ),
         AuctionRecord(
             week_no="2026-W29", maker="현대", model_name="그랜저",
+            mdetail_name="그랜저 IG", grade_name="가솔린 2.5", gdetail_name="익스클루시브",
             hammer_price=2400, car_year=2020, km_bin="3~4.5만", fuel="가솔린",
+        ),
+        # 같은 모델·다른 세부등급 — 모델명 기준이면 합쳐지지만 세부등급 기준이면 분리
+        AuctionRecord(
+            week_no="2026-W30", maker="현대", model_name="그랜저",
+            mdetail_name="그랜저 IG", grade_name="가솔린 2.5", gdetail_name="캘리그래피",
+            hammer_price=3200, car_year=2020, km_bin="3~4.5만", fuel="가솔린",
+        ),
+        AuctionRecord(
+            week_no="2026-W29", maker="현대", model_name="그랜저",
+            mdetail_name="그랜저 IG", grade_name="가솔린 2.5", gdetail_name="캘리그래피",
+            hammer_price=2800, car_year=2020, km_bin="3~4.5만", fuel="가솔린",
         ),
         MarketSummary(
             maker="현대", model_name="그랜저", car_year=2020, fuel="가솔린",
@@ -59,6 +73,23 @@ def test_briefing_build(app, db):
     assert data["current_period"] == "2026-W30"
     assert data["previous_period"] == "2026-W29"
     assert data["total_cur"] >= 2
+    assert data.get("compare_basis") == "gdetail"
+
+
+def test_briefing_compares_by_gdetail_not_model(app, db):
+    """같은 모델이라도 세부등급이 다르면 전주대비를 따로 계산한다."""
+    _seed_auction(db)
+    data = build_briefing()
+    by_trim = {r["gdetail_name"]: r for r in data["rows"]}
+    assert "익스클루시브" in by_trim
+    assert "캘리그래피" in by_trim
+    # 익스클루시브: ((2500+2600)/2 - 2400)/2400 = 6.25% → 6.2
+    assert by_trim["익스클루시브"]["price_pct"] == 6.2
+    # 캘리그래피: (3200-2800)/2800 ≈ 14.3%
+    assert by_trim["캘리그래피"]["price_pct"] == 14.3
+    # 모델명으로 합치면 한 줄이 되어야 하지만, 세부등급 기준이면 2줄
+    granzer_rows = [r for r in data["rows"] if r["model_name"] == "그랜저"]
+    assert len(granzer_rows) == 2
 
 
 def test_briefing_page(client, db):
@@ -68,6 +99,7 @@ def test_briefing_page(client, db):
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
     assert "BRIEFING" in body or "브리핑" in body
+    assert "익스클루시브" in body or "세부" in body
 
 
 def test_ai_learning_admin_only(app, client):

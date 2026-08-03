@@ -63,6 +63,7 @@
     <table class="table table-sm table-hover align-middle mb-0">
       <thead><tr>
         <th>{{ t('maker') }}</th><th>{{ t('model') }}</th>
+        <th>{{ t('mdetail') }}</th><th>{{ t('grade') }}</th><th>{{ t('gdetail') }}</th>
         <th>{{ t('briefing_cur_price') }}</th><th>{{ t('briefing_prev_price') }}</th><th>{{ t('mom') }}</th>
       </tr></thead>
       <tbody>
@@ -70,6 +71,9 @@
         <tr>
           <td>{{ r.maker_name|tr }}</td>
           <td>{{ r.model_name|tr }}</td>
+          <td>{{ r.mdetail_name|tr if r.mdetail_name else '-' }}</td>
+          <td>{{ r.grade_name|tr if r.grade_name else '-' }}</td>
+          <td class="fw-semibold">{{ r.gdetail_name|tr if r.gdetail_name else (r.trim_name|tr if r.trim_name else '-') }}</td>
           <td>{{ "{:,}".format(r.cur_price) if r.cur_price is not none else '-' }}</td>
           <td>{{ "{:,}".format(r.prev_price) if r.prev_price is not none else '-' }}</td>
           <td>
@@ -94,6 +98,7 @@
     <table class="table table-sm table-hover align-middle mb-0">
       <thead><tr>
         <th>{{ t('maker') }}</th><th>{{ t('model') }}</th>
+        <th>{{ t('mdetail') }}</th><th>{{ t('grade') }}</th><th>{{ t('gdetail') }}</th>
         <th>{{ t('briefing_cur_count') }}</th><th>{{ t('briefing_prev_count') }}</th><th>{{ t('mom') }}</th>
       </tr></thead>
       <tbody>
@@ -101,6 +106,9 @@
         <tr>
           <td>{{ r.maker_name|tr }}</td>
           <td>{{ r.model_name|tr }}</td>
+          <td>{{ r.mdetail_name|tr if r.mdetail_name else '-' }}</td>
+          <td>{{ r.grade_name|tr if r.grade_name else '-' }}</td>
+          <td class="fw-semibold">{{ r.gdetail_name|tr if r.gdetail_name else (r.trim_name|tr if r.trim_name else '-') }}</td>
           <td>{{ r.cur_count }}</td>
           <td>{{ r.prev_count }}</td>
           <td>
@@ -124,6 +132,7 @@
     <table class="table table-sm align-middle mb-0">
       <thead><tr>
         <th>{{ t('maker') }}</th><th>{{ t('model') }}</th>
+        <th>{{ t('mdetail') }}</th><th>{{ t('grade') }}</th><th>{{ t('gdetail') }}</th>
         <th>{{ t('briefing_cur_price') }}</th><th>{{ t('briefing_prev_price') }}</th><th>{{ t('mom') }}</th>
         <th>{{ t('briefing_cur_count') }}</th><th>{{ t('briefing_prev_count') }}</th>
       </tr></thead>
@@ -132,6 +141,9 @@
         <tr>
           <td>{{ r.maker_name|tr }}</td>
           <td>{{ r.model_name|tr }}</td>
+          <td>{{ r.mdetail_name|tr if r.mdetail_name else '-' }}</td>
+          <td>{{ r.grade_name|tr if r.grade_name else '-' }}</td>
+          <td class="fw-semibold">{{ r.gdetail_name|tr if r.gdetail_name else (r.trim_name|tr if r.trim_name else '-') }}</td>
           <td>{{ "{:,}".format(r.cur_price) if r.cur_price is not none else '-' }}</td>
           <td>{{ "{:,}".format(r.prev_price) if r.prev_price is not none else '-' }}</td>
           <td>{{ '%+.1f'|format(r.price_pct) + '%' if r.price_pct is not none else '-' }}</td>
