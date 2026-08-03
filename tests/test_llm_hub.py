@@ -54,6 +54,52 @@ def test_switch_and_status(app, db):
     assert any(s["provider"] == "openai" and s["is_active"] for s in status)
 
 
+def test_generate_with_failover_promotes_backup(app, db, monkeypatch):
+    """활성 AI 실패 시 키가 있는 다음 AI로 전환하고 활성으로 승격한다."""
+    save_provider_settings("gemini", api_key="AIzaSyTestGeminiKey123456")
+    save_provider_settings("openai", api_key="sk-test-openai-key-123456")
+    set_active("gemini")
+
+    class FailGemini:
+        name = "gemini"
+        def generate(self, prompt):
+            raise LLMError("quota exceeded")
+
+    class OkOpenAI:
+        name = "openai"
+        def generate(self, prompt):
+            return "대체 AI 응답"
+
+    monkeypatch.setattr(
+        llm_hub, "get_provider",
+        lambda name=None: FailGemini() if (name or "gemini") == "gemini" else OkOpenAI(),
+    )
+    result = llm_hub.generate_with_failover("시세 요약")
+    assert result["ok"] is True
+    assert result["provider"] == "openai"
+    assert result["failover_from"] == "gemini"
+    assert result["text"] == "대체 AI 응답"
+    assert llm_hub.active_provider_name() == "openai"
+
+
+def test_generate_with_failover_all_fail(app, db, monkeypatch):
+    save_provider_settings("gemini", api_key="AIzaSyTestGeminiKey123456")
+    set_active("gemini")
+
+    class Fail:
+        name = "gemini"
+        def generate(self, prompt):
+            raise LLMError("down")
+
+    monkeypatch.setattr(llm_hub, "get_provider", lambda name=None: Fail())
+    monkeypatch.setattr(llm_hub, "failover_provider_order", lambda primary=None: ["gemini"])
+    try:
+        llm_hub.generate_with_failover("x")
+        assert False
+    except LLMError as exc:
+        assert "모든 LLM" in str(exc)
+
+
 def test_admin_llm_settings_endpoint(client, app):
     from tests.conftest import login
     login(client)

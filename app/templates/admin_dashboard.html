@@ -35,6 +35,7 @@
     <p class="small text-muted mb-3">
       아래에서 각 AI 제공자의 <strong>API 키를 직접 입력</strong>한 뒤 <strong>키 저장</strong>을 누르세요.
       저장 후 <strong>연결테스트</strong> → <strong>활성화</strong> 순서로 사용합니다.
+      활성 AI가 응답하지 못하면 키가 등록된 다른 AI로 <strong>자동 전환</strong>되며, 성공한 AI가 새 활성으로 표시됩니다.
     </p>
     <div class="row g-3">
       {% for l in llm_status %}

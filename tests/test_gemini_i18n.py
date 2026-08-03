@@ -17,7 +17,7 @@ def test_report_cache_hit(app, db, monkeypatch):
 
     def boom(*a, **k):
         raise AssertionError("provider should not be called on cache hit")
-    monkeypatch.setattr(gemini_report, "get_provider", boom)
+    monkeypatch.setattr(gemini_report, "generate_with_failover", boom)
 
     res = gemini_report.generate_report("C1")
     assert res["ok"] and res["cached"] and res["text"] == "캐시된 리포트"
@@ -26,10 +26,9 @@ def test_report_cache_hit(app, db, monkeypatch):
 def test_report_graceful_failure(app, db, monkeypatch):
     _listing(db)
 
-    class FailProvider:
-        def generate(self, prompt):
-            raise LLMError("quota exceeded")
-    monkeypatch.setattr(gemini_report, "get_provider", lambda *a, **k: FailProvider())
+    def fail(_prompt):
+        raise LLMError("quota exceeded")
+    monkeypatch.setattr(gemini_report, "generate_with_failover", fail)
 
     res = gemini_report.generate_report("C1", force=True)
     assert res["ok"] is False

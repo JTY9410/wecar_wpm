@@ -241,6 +241,43 @@ def test_provider(name=None):
         return {"ok": False, "provider": provider.name, "error": str(exc)}
 
 
+def failover_provider_order(primary=None):
+    """활성 AI 우선, 이후 gemini→openai→claude. 키가 있는 provider만."""
+    primary = primary or active_provider_name()
+    ordered = [primary] + [p for p in PROVIDERS if p != primary]
+    return [p for p in ordered if resolve_api_key(p)]
+
+
+def generate_with_failover(prompt):
+    """활성 AI 실패 시 키가 있는 다른 AI로 자동 전환·승격.
+
+    Returns dict(ok, provider, text[, failover_from]).
+    """
+    order = failover_provider_order()
+    if not order:
+        raise LLMError(
+            "사용 가능한 LLM API 키가 없습니다. "
+            "관리자 LLM 패널 또는 .env에 키를 등록하세요."
+        )
+    primary = active_provider_name()
+    errors = []
+    for name in order:
+        try:
+            text = get_provider(name).generate(prompt)
+            if not text or not str(text).strip():
+                raise LLMError(f"{name} 응답이 비어 있습니다.")
+            result = {"ok": True, "provider": name, "text": text}
+            if name != primary:
+                logger.warning("LLM failover: %s -> %s", primary, name)
+                set_active(name)
+                result["failover_from"] = primary
+            return result
+        except LLMError as exc:
+            errors.append(f"{name}: {exc}")
+            logger.warning("LLM provider %s failed: %s", name, exc)
+    raise LLMError("모든 LLM 제공자 호출 실패: " + " | ".join(errors))
+
+
 def generate_price_forecast(context):
     """금주 예상가 리포트 — 가격 수치는 통계 계산값(market_query.forecast_from_trend)을 그대로 인용하고,
     AI는 그 수치를 바꾸지 않은 채 트렌드/표본 근거만 정성적으로 설명한다 (PRD §2 준수)."""
@@ -258,9 +295,7 @@ def generate_price_forecast(context):
         f"(전주대비 {context.get('expected_pct')}%)\n"
         f"주차별 추이:\n{trend_lines or '- (표본 부족)'}"
     )
-    provider = get_provider()
-    text = provider.generate(prompt)
-    return {"ok": True, "provider": provider.name, "text": text}
+    return generate_with_failover(prompt)
 
 
 def generate_market_summary(sample_rows):
@@ -278,6 +313,4 @@ def generate_market_summary(sample_rows):
         "새로운 가격을 예측·계산하지 말고, 주어진 숫자만 참고해 서술하세요.\n\n"
         + "\n".join(lines)
     )
-    provider = get_provider()
-    text = provider.generate(prompt)
-    return {"ok": True, "provider": provider.name, "text": text}
+    return generate_with_failover(prompt)

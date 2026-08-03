@@ -4,7 +4,7 @@ from datetime import date
 from config import Config
 from app.extensions import db
 from app.models import GeminiReportCache, Listing, SyncLog
-from app.services.llm_hub import LLMError, active_provider_name, get_provider
+from app.services.llm_hub import LLMError, active_provider_name, generate_with_failover
 
 _daily_counter = {"date": None, "count": 0}
 
@@ -45,8 +45,8 @@ def generate_report(car_no, force=False):
         return {"ok": False, "error": "일일 리포트 요청 한도를 초과했습니다.", "graceful": True}
 
     try:
-        provider = get_provider()
-        text = provider.generate(_build_prompt(listing))
+        result = generate_with_failover(_build_prompt(listing))
+        text = result["text"]
         _bump()
     except (LLMError, Exception) as exc:
         db.session.add(SyncLog(sync_type="LLM_REPORT", status="FAIL",
@@ -61,4 +61,7 @@ def generate_report(car_no, force=False):
         cached = GeminiReportCache(car_no=car_no, report_text=text)
         db.session.add(cached)
     db.session.commit()
-    return {"ok": True, "cached": False, "text": text, "provider": provider.name}
+    out = {"ok": True, "cached": False, "text": text, "provider": result["provider"]}
+    if result.get("failover_from"):
+        out["failover_from"] = result["failover_from"]
+    return out
