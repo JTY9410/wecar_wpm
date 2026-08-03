@@ -65,6 +65,7 @@
         <th>{{ t('maker') }}</th><th>{{ t('model') }}</th>
         <th>{{ t('mdetail') }}</th><th>{{ t('grade') }}</th><th>{{ t('gdetail') }}</th>
         <th>{{ t('briefing_cur_price') }}</th><th>{{ t('briefing_prev_price') }}</th><th>{{ t('mom') }}</th>
+        <th>{{ t('briefing_detail_col') }}</th>
       </tr></thead>
       <tbody>
         {% for r in data.price_alerts %}
@@ -81,6 +82,20 @@
             <span class="badge {{ 'text-bg-danger' if r.price_pct > 0 else 'text-bg-success' }}">{{ '%+.1f'|format(r.price_pct) }}%</span>
             {% else %}-{% endif %}
           </td>
+          <td class="text-nowrap">
+            <button type="button"
+                    class="btn btn-sm btn-outline-primary briefing-detail-btn"
+                    data-maker="{{ r.maker_name or '' }}"
+                    data-model-name="{{ r.model_name or '' }}"
+                    data-mdetail-name="{{ r.mdetail_name or '' }}"
+                    data-grade-name="{{ r.grade_name or '' }}"
+                    data-gdetail-name="{{ r.gdetail_name or '' }}"
+                    data-current-week="{{ data.current_period }}"
+                    data-previous-week="{{ data.previous_period or '' }}"
+                    data-title="{{ r.maker_name }} · {{ r.trim_name }}">
+              {{ t('briefing_view') }}
+            </button>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -89,6 +104,56 @@
   {% else %}
   <p class="text-muted small mb-0">{{ t('briefing_no_price_alerts') }}</p>
   {% endif %}
+</div>
+
+<div class="modal fade" id="briefingDetailModal" tabindex="-1" aria-labelledby="briefingDetailModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title mb-0" id="briefingDetailModalLabel">{{ t('briefing_detail_title') }}</h5>
+          <p class="small text-muted mb-0 text-truncate" id="briefingDetailSubtitle"></p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="briefingDetailLoading" class="p-4 text-center text-muted d-none">{{ t('briefing_detail_loading') }}</div>
+        <div id="briefingDetailEmpty" class="p-4 text-center text-muted d-none">{{ t('briefing_detail_empty') }}</div>
+        <div id="briefingDetailContent" class="d-none">
+          <h6 class="fw-semibold mb-2" id="briefingDetailCurHead"></h6>
+          <div class="table-responsive mb-4">
+            <table class="table table-sm table-hover align-middle mb-0">
+              <thead><tr>
+                <th>{{ t('briefing_auction_date') }}</th>
+                <th>{{ t('year') }}</th>
+                <th>{{ t('fuel') }}</th>
+                <th>{{ t('km') }}</th>
+                <th>{{ t('briefing_hammer') }}</th>
+                <th>{{ t('briefing_hope') }}</th>
+                <th>{{ t('accident') }}</th>
+              </tr></thead>
+              <tbody id="briefingDetailCurBody"></tbody>
+            </table>
+          </div>
+          <h6 class="fw-semibold mb-2" id="briefingDetailPrevHead"></h6>
+          <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+              <thead><tr>
+                <th>{{ t('briefing_auction_date') }}</th>
+                <th>{{ t('year') }}</th>
+                <th>{{ t('fuel') }}</th>
+                <th>{{ t('km') }}</th>
+                <th>{{ t('briefing_hammer') }}</th>
+                <th>{{ t('briefing_hope') }}</th>
+                <th>{{ t('accident') }}</th>
+              </tr></thead>
+              <tbody id="briefingDetailPrevBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="glass-card p-3 mb-3">
@@ -155,5 +220,97 @@
     </table>
   </div>
 </div>
+{% endif %}
+
+{% if data.available %}
+<script>
+(function () {
+  const t = (k, vars) => {
+    let s = {{ {
+      "briefing_detail_loading": t('briefing_detail_loading'),
+      "briefing_detail_empty": t('briefing_detail_empty'),
+      "briefing_cur_week_records": t('briefing_cur_week_records'),
+      "briefing_prev_week_records": t('briefing_prev_week_records'),
+      "briefing_no_prev_records": t('briefing_no_prev_records'),
+      "briefing_records_count": t('briefing_records_count'),
+      "briefing_detail_title": t('briefing_detail_title'),
+    }|tojson }}[k] || k;
+    if (vars) Object.keys(vars).forEach((key) => { s = s.replace(`{${key}}`, vars[key]); });
+    return s;
+  };
+  const esc = (s) => String(s ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+  const fmt = (n) => (n == null || n === "") ? "-" : Number(n).toLocaleString();
+
+  const modalEl = document.getElementById("briefingDetailModal");
+  if (!modalEl || !window.bootstrap) return;
+  document.body.appendChild(modalEl);
+  const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+  function rowsHtml(items) {
+    if (!items || !items.length) {
+      return `<tr><td colspan="7" class="text-muted text-center py-3">${esc(t("briefing_detail_empty"))}</td></tr>`;
+    }
+    return items.map((r) => `<tr>
+      <td>${esc(r.auction_date || "-")}</td>
+      <td>${esc(r.car_year ?? "-")}</td>
+      <td>${esc(r.fuel || "-")}</td>
+      <td>${r.car_km != null ? Number(r.car_km).toLocaleString() + "km" : esc(r.km_bin || "-")}</td>
+      <td class="fw-semibold text-end">${fmt(r.hammer_price)}</td>
+      <td class="text-end">${fmt(r.hope_price)}</td>
+      <td>${esc(r.accident_detail || (r.is_accident_free ? "무사고" : "-"))}</td>
+    </tr>`).join("");
+  }
+
+  async function openDetail(btn) {
+    const params = new URLSearchParams({
+      current_week: btn.dataset.currentWeek || "",
+      previous_week: btn.dataset.previousWeek || "",
+      maker: btn.dataset.maker || "",
+      model_name: btn.dataset.modelName || "",
+      mdetail_name: btn.dataset.mdetailName || "",
+      grade_name: btn.dataset.gradeName || "",
+      gdetail_name: btn.dataset.gdetailName || "",
+    });
+    document.getElementById("briefingDetailModalLabel").textContent = t("briefing_detail_title");
+    document.getElementById("briefingDetailSubtitle").textContent = btn.dataset.title || "";
+    document.getElementById("briefingDetailLoading").classList.remove("d-none");
+    document.getElementById("briefingDetailEmpty").classList.add("d-none");
+    document.getElementById("briefingDetailContent").classList.add("d-none");
+    modal.show();
+
+    try {
+      const r = await fetch("/briefing/api/details?" + params.toString(), {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      });
+      const data = await r.json();
+      document.getElementById("briefingDetailLoading").classList.add("d-none");
+      if (!r.ok || !data.ok) {
+        document.getElementById("briefingDetailEmpty").classList.remove("d-none");
+        return;
+      }
+      const curN = data.current_count || 0;
+      const prevN = data.previous_count || 0;
+      document.getElementById("briefingDetailCurHead").textContent =
+        `${t("briefing_cur_week_records")} (${data.current_week || "-"}) · ${t("briefing_records_count", { n: curN })}`;
+      document.getElementById("briefingDetailPrevHead").textContent = data.previous_week
+        ? `${t("briefing_prev_week_records")} (${data.previous_week}) · ${t("briefing_records_count", { n: prevN })}`
+        : t("briefing_no_prev_records");
+      document.getElementById("briefingDetailCurBody").innerHTML = rowsHtml(data.current_items);
+      document.getElementById("briefingDetailPrevBody").innerHTML = rowsHtml(data.previous_items);
+      document.getElementById("briefingDetailContent").classList.remove("d-none");
+    } catch (e) {
+      document.getElementById("briefingDetailLoading").classList.add("d-none");
+      document.getElementById("briefingDetailEmpty").classList.remove("d-none");
+    }
+  }
+
+  document.querySelectorAll(".briefing-detail-btn").forEach((btn) => {
+    btn.addEventListener("click", () => openDetail(btn));
+  });
+})();
+</script>
 {% endif %}
 {% endblock %}

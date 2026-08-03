@@ -3,7 +3,7 @@
 from app.extensions import db as _db
 from app.models import AuctionRecord, MarketSummary, User
 from app.services.excel_export import export_grid_excel
-from app.services.weekly_briefing import build_briefing
+from app.services.weekly_briefing import build_briefing, fetch_trim_auction_details
 from tests.conftest import login
 
 
@@ -100,6 +100,42 @@ def test_briefing_page(client, db):
     body = resp.get_data(as_text=True)
     assert "BRIEFING" in body or "브리핑" in body
     assert "익스클루시브" in body or "세부" in body
+    assert "briefing-detail-btn" in body or "세부현황" in body
+
+
+def test_fetch_trim_auction_details(app, db):
+    _seed_auction(db)
+    data = fetch_trim_auction_details(
+        current_week="2026-W30",
+        previous_week="2026-W29",
+        maker="현대",
+        model_name="그랜저",
+        mdetail_name="그랜저 IG",
+        grade_name="가솔린 2.5",
+        gdetail_name="익스클루시브",
+    )
+    assert data["ok"] is True
+    assert data["current_count"] == 2
+    assert data["previous_count"] == 1
+    assert all(r["gdetail_name"] == "익스클루시브" for r in data["current_items"])
+    # 다른 세부등급(캘리그래피)은 포함되지 않음
+    assert all(r["hammer_price"] != 3200 for r in data["current_items"])
+
+
+def test_briefing_details_api(client, db):
+    _seed_auction(db)
+    login(client)
+    resp = client.get(
+        "/briefing/api/details"
+        "?current_week=2026-W30&previous_week=2026-W29"
+        "&maker=현대&model_name=그랜저&mdetail_name=그랜저 IG"
+        "&grade_name=가솔린 2.5&gdetail_name=익스클루시브"
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["ok"] is True
+    assert data["current_count"] == 2
+    assert data["previous_count"] == 1
 
 
 def test_ai_learning_admin_only(app, client):
