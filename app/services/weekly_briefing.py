@@ -6,6 +6,7 @@ from app.extensions import db
 from app.models import AuctionRecord
 
 PRICE_THRESHOLD_PCT = 5.0
+PRICE_ALERT_MIN_SAMPLES = 2  # 금주·전주 각각 최소 표본 (1건 노이즈 제외)
 SURGE_THRESHOLD_PCT = 30.0
 DETAIL_LIMIT = 200
 
@@ -202,7 +203,12 @@ def build_briefing(week_no=None):
         price_flag = False
         if cur_price is not None and prev_price:
             price_pct = round(((cur_price - prev_price) / prev_price) * 100, 1)
-            price_flag = abs(price_pct) >= PRICE_THRESHOLD_PCT
+            # 가격 특이사항: 전주대비 ±5% 이상이고 양쪽 표본이 충분할 때만
+            price_flag = (
+                abs(price_pct) >= PRICE_THRESHOLD_PCT
+                and cur_count >= PRICE_ALERT_MIN_SAMPLES
+                and prev_count >= PRICE_ALERT_MIN_SAMPLES
+            )
 
         count_pct = None
         surge_flag = False
@@ -257,6 +263,7 @@ def build_briefing(week_no=None):
         "total_prev": total_prev,
         "total_pct": total_pct,
         "price_threshold": PRICE_THRESHOLD_PCT,
+        "price_alert_min_samples": PRICE_ALERT_MIN_SAMPLES,
         "surge_threshold": SURGE_THRESHOLD_PCT,
         "price_alert_on": True,
         "surge_alert_on": True,

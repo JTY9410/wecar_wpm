@@ -57,7 +57,7 @@
 </div>
 
 <div class="glass-card p-3 mb-3">
-  <h5 class="mb-3">{{ t('briefing_price_alerts') }} ({{ data.price_threshold }}%+)</h5>
+  <h5 class="mb-3">{{ t('briefing_price_alerts') }} ({{ data.price_threshold }}%+ · {{ t('briefing_min_samples') }} {{ data.price_alert_min_samples }}+)</h5>
   {% if data.price_alerts %}
   <div class="table-responsive">
     <table class="table table-sm table-hover align-middle mb-0">

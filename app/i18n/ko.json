@@ -61,6 +61,7 @@
   "briefing_total_pct": "전체 표본 변동",
   "briefing_alerts": "가격특이 / 급증",
   "briefing_price_alerts": "가격 특이사항",
+  "briefing_min_samples": "표본",
   "briefing_surge_alerts": "표본 급증",
   "briefing_no_price_alerts": "해당 주차 가격 특이사항이 없습니다.",
   "briefing_no_surge_alerts": "해당 주차 표본 급증이 없습니다.",

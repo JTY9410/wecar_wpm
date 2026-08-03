@@ -61,6 +61,7 @@
   "briefing_total_pct": "Sample change",
   "briefing_alerts": "Price / volume alerts",
   "briefing_price_alerts": "Price alerts",
+  "briefing_min_samples": "samples",
   "briefing_surge_alerts": "Sample surges",
   "briefing_no_price_alerts": "No price alerts for this week.",
   "briefing_no_surge_alerts": "No sample surges for this week.",

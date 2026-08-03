@@ -24,7 +24,17 @@ def _seed_auction(db):
             mdetail_name="그랜저 IG", grade_name="가솔린 2.5", gdetail_name="익스클루시브",
             hammer_price=2400, car_year=2020, km_bin="3~4.5만", fuel="가솔린",
         ),
+        AuctionRecord(
+            week_no="2026-W29", maker="현대", model_name="그랜저",
+            mdetail_name="그랜저 IG", grade_name="가솔린 2.5", gdetail_name="익스클루시브",
+            hammer_price=2400, car_year=2020, km_bin="3~4.5만", fuel="가솔린",
+        ),
         # 같은 모델·다른 세부등급 — 모델명 기준이면 합쳐지지만 세부등급 기준이면 분리
+        AuctionRecord(
+            week_no="2026-W30", maker="현대", model_name="그랜저",
+            mdetail_name="그랜저 IG", grade_name="가솔린 2.5", gdetail_name="캘리그래피",
+            hammer_price=3200, car_year=2020, km_bin="3~4.5만", fuel="가솔린",
+        ),
         AuctionRecord(
             week_no="2026-W30", maker="현대", model_name="그랜저",
             mdetail_name="그랜저 IG", grade_name="가솔린 2.5", gdetail_name="캘리그래피",
@@ -34,6 +44,43 @@ def _seed_auction(db):
             week_no="2026-W29", maker="현대", model_name="그랜저",
             mdetail_name="그랜저 IG", grade_name="가솔린 2.5", gdetail_name="캘리그래피",
             hammer_price=2800, car_year=2020, km_bin="3~4.5만", fuel="가솔린",
+        ),
+        AuctionRecord(
+            week_no="2026-W29", maker="현대", model_name="그랜저",
+            mdetail_name="그랜저 IG", grade_name="가솔린 2.5", gdetail_name="캘리그래피",
+            hammer_price=2800, car_year=2020, km_bin="3~4.5만", fuel="가솔린",
+        ),
+        # 표본 1건씩 — 변동은 크지만 가격 특이사항에서 제외
+        AuctionRecord(
+            week_no="2026-W30", maker="기아", model_name="모닝",
+            mdetail_name="모닝", grade_name="가솔린", gdetail_name="베이직",
+            hammer_price=900, car_year=2019, km_bin="3~4.5만", fuel="가솔린",
+        ),
+        AuctionRecord(
+            week_no="2026-W29", maker="기아", model_name="모닝",
+            mdetail_name="모닝", grade_name="가솔린", gdetail_name="베이직",
+            hammer_price=300, car_year=2019, km_bin="3~4.5만", fuel="가솔린",
+        ),
+        # 표본은 충분하지만 변동 < 5% — 가격 특이사항에서 제외
+        AuctionRecord(
+            week_no="2026-W30", maker="현대", model_name="아반떼",
+            mdetail_name="아반떼 CN7", grade_name="가솔린 1.6", gdetail_name="스마트",
+            hammer_price=1020, car_year=2021, km_bin="3~4.5만", fuel="가솔린",
+        ),
+        AuctionRecord(
+            week_no="2026-W30", maker="현대", model_name="아반떼",
+            mdetail_name="아반떼 CN7", grade_name="가솔린 1.6", gdetail_name="스마트",
+            hammer_price=1020, car_year=2021, km_bin="3~4.5만", fuel="가솔린",
+        ),
+        AuctionRecord(
+            week_no="2026-W29", maker="현대", model_name="아반떼",
+            mdetail_name="아반떼 CN7", grade_name="가솔린 1.6", gdetail_name="스마트",
+            hammer_price=1000, car_year=2021, km_bin="3~4.5만", fuel="가솔린",
+        ),
+        AuctionRecord(
+            week_no="2026-W29", maker="현대", model_name="아반떼",
+            mdetail_name="아반떼 CN7", grade_name="가솔린 1.6", gdetail_name="스마트",
+            hammer_price=1000, car_year=2021, km_bin="3~4.5만", fuel="가솔린",
         ),
         MarketSummary(
             maker="현대", model_name="그랜저", car_year=2020, fuel="가솔린",
@@ -92,6 +139,23 @@ def test_briefing_compares_by_gdetail_not_model(app, db):
     assert len(granzer_rows) == 2
 
 
+def test_price_alerts_only_real_anomalies(app, db):
+    """가격 특이사항은 ±5% 이상 + 금주·전주 표본 각 2건 이상만 포함한다."""
+    _seed_auction(db)
+    data = build_briefing()
+    alert_trims = {r["gdetail_name"] for r in data["price_alerts"]}
+    assert "익스클루시브" in alert_trims
+    assert "캘리그래피" in alert_trims
+    # 표본 1건씩(모닝 베이직) — 변동 크더라도 제외
+    assert "베이직" not in alert_trims
+    # 표본은 충분하지만 2%대 변동 — 제외
+    assert "스마트" not in alert_trims
+    assert all(r["price_flag"] for r in data["price_alerts"])
+    assert all(
+        r["cur_count"] >= 2 and r["prev_count"] >= 2 for r in data["price_alerts"]
+    )
+
+
 def test_briefing_page(client, db):
     _seed_auction(db)
     login(client)
@@ -116,7 +180,7 @@ def test_fetch_trim_auction_details(app, db):
     )
     assert data["ok"] is True
     assert data["current_count"] == 2
-    assert data["previous_count"] == 1
+    assert data["previous_count"] == 2
     assert all(r["gdetail_name"] == "익스클루시브" for r in data["current_items"])
     # 다른 세부등급(캘리그래피)은 포함되지 않음
     assert all(r["hammer_price"] != 3200 for r in data["current_items"])
@@ -135,7 +199,7 @@ def test_briefing_details_api(client, db):
     data = resp.get_json()
     assert data["ok"] is True
     assert data["current_count"] == 2
-    assert data["previous_count"] == 1
+    assert data["previous_count"] == 2
 
 
 def test_ai_learning_admin_only(app, client):

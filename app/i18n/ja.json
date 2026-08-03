@@ -61,6 +61,7 @@
   "briefing_total_pct": "全体標本変動",
   "briefing_alerts": "価格特異 / 急増",
   "briefing_price_alerts": "価格アラート",
+  "briefing_min_samples": "標本",
   "briefing_surge_alerts": "標本急増",
   "briefing_no_price_alerts": "該当週の価格アラートはありません。",
   "briefing_no_surge_alerts": "該当週の標本急増はありません。",
