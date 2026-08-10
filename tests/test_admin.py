@@ -1,5 +1,6 @@
 import io
 
+from app.extensions import db
 from app.models import AuctionRecord, UploadHistory
 from tests.conftest import login
 from tests.fixtures.make_fixture import build
@@ -18,8 +19,8 @@ def test_admin_upload_endpoint(app, client, tmp_path):
     assert body["ok"] is True
     assert body["rows_ok"] == 3
     with app.app_context():
-        assert AuctionRecord.query.count() == 3
-        assert UploadHistory.query.filter_by(status="SUCCESS").count() == 1
+        assert db.session.scalar(db.select(db.func.count()).select_from(AuctionRecord)) == 3
+        assert db.session.scalar(db.select(db.func.count()).select_from(UploadHistory).where(UploadHistory.status == "SUCCESS")) == 1
 
 
 def test_admin_upload_rejects_non_excel(client):

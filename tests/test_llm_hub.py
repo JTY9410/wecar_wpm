@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+from app.extensions import db
 from app.models import LLMConfig
 from app.services import llm_hub
 from app.services.llm_hub import (
@@ -111,7 +112,7 @@ def test_admin_llm_settings_endpoint(client, app):
     assert resp.status_code == 200
     assert resp.get_json()["ok"] is True
     with app.app_context():
-        row = LLMConfig.query.filter_by(provider="gemini").first()
+        row = db.session.execute(db.select(LLMConfig).where(LLMConfig.provider == "gemini")).scalar_one_or_none()
         assert row.api_key.startswith("AIza")
 
 
@@ -138,7 +139,7 @@ def test_summary_without_key_graceful(client, app):
         ))
         _db.session.commit()
         # clear keys
-        for row in LLMConfig.query.all():
+        for row in db.session.execute(db.select(LLMConfig)).scalars():
             row.api_key = None
         _db.session.commit()
     with patch.object(llm_hub.Config, "GEMINI_API_KEY", ""):

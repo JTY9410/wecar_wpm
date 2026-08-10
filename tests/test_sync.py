@@ -1,3 +1,4 @@
+from app.extensions import db
 from app.models import Listing, SyncLog
 from app.services import sync_engine
 from app.services.api_client import ApiUnavailable, fetch_listings
@@ -67,7 +68,7 @@ def test_sync_marks_missing_as_sold(app, db):
     assert result["status"] == "SUCCESS"
     assert db.session.get(Listing, "OLD1").is_sold is True   # missing → sold, preserved
     assert db.session.get(Listing, "NEW1").is_sold is False
-    assert SyncLog.query.filter_by(sync_type="AUTO_API_SYNC").count() == 1
+    assert db.session.scalar(db.select(db.func.count()).select_from(SyncLog).where(SyncLog.sync_type == "AUTO_API_SYNC")) == 1
 
 
 def test_iter_listing_pages_chunks(app, monkeypatch):

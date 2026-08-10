@@ -38,8 +38,8 @@ ALLOWED_EXT = {".xlsx", ".xls"}
 @login_required
 @admin_required
 def dashboard():
-    history = UploadHistory.query.order_by(UploadHistory.created_at.desc()).limit(20).all()
-    logs = SyncLog.query.order_by(SyncLog.created_at.desc()).limit(20).all()
+    history = db.session.execute(db.select(UploadHistory).order_by(UploadHistory.created_at.desc()).limit(20)).scalars().all()
+    logs = db.session.execute(db.select(SyncLog).order_by(SyncLog.created_at.desc()).limit(20)).scalars().all()
     google_key = google_translate.resolve_api_key()
     return render_template(
         "admin_dashboard.html",
@@ -115,7 +115,7 @@ def upload():
     result["train"] = PriceModel().train()
     result["hedonic"] = HedonicModel().train()
     rag_status = rag_store.embed_records(
-        AuctionRecord.query.filter_by(week_no=week_no).all()
+        db.session.execute(db.select(AuctionRecord).where(AuctionRecord.week_no == week_no)).scalars().all()
     )
     result["rag"] = rag_status.get("status")
     train = result.get("train") or {}
@@ -265,23 +265,24 @@ def translations():
     q = (request.args.get("q") or "").strip()
     page = max(request.args.get("page", 1, type=int), 1)
 
-    query = TranslationCache.query.filter_by(lang=lang)
+    query = db.select(TranslationCache).where(TranslationCache.lang == lang)
     if q:
-        query = query.filter(
+        query = query.where(
             db.or_(
                 TranslationCache.source_text.ilike(f"%{q}%"),
                 TranslationCache.translated_text.ilike(f"%{q}%"),
             )
         )
-    pagination = query.order_by(TranslationCache.reviewed.asc(), TranslationCache.id.desc()).paginate(
+    pagination = db.paginate(
+        query.order_by(TranslationCache.reviewed.asc(), TranslationCache.id.desc()),
         page=page, per_page=30, error_out=False
     )
-    glossary = (
-        LearnedGlossary.query.filter_by(lang=lang)
+    glossary = db.session.execute(
+        db.select(LearnedGlossary)
+        .where(LearnedGlossary.lang == lang)
         .order_by(LearnedGlossary.updated_at.desc())
         .limit(50)
-        .all()
-    )
+    ).scalars().all()
     return render_template(
         "admin_translations.html",
         lang=lang,
@@ -290,9 +291,9 @@ def translations():
         glossary=glossary,
         promote_threshold=PROMOTE_THRESHOLD,
         stats={
-            "total": TranslationCache.query.filter_by(lang=lang).count(),
-            "reviewed": TranslationCache.query.filter_by(lang=lang, reviewed=True).count(),
-            "learned": LearnedGlossary.query.filter_by(lang=lang).count(),
+            "total": db.session.scalar(db.select(db.func.count()).select_from(TranslationCache).where(TranslationCache.lang == lang)),
+            "reviewed": db.session.scalar(db.select(db.func.count()).select_from(TranslationCache).where(TranslationCache.lang == lang, TranslationCache.reviewed == True)),
+            "learned": db.session.scalar(db.select(db.func.count()).select_from(LearnedGlossary).where(LearnedGlossary.lang == lang)),
         },
     )
 
@@ -303,7 +304,7 @@ def translations():
 def update_translation(entry_id):
     from app.services.i18n_translate import promote_to_glossary
 
-    entry = TranslationCache.query.get_or_404(entry_id)
+    entry = db.get_or_404(TranslationCache, entry_id)
     action = request.form.get("action", "save")
     if action == "delete":
         db.session.delete(entry)
@@ -334,7 +335,7 @@ def update_translation(entry_id):
 @login_required
 @admin_required
 def delete_learned_glossary(entry_id):
-    entry = LearnedGlossary.query.get_or_404(entry_id)
+    entry = db.get_or_404(LearnedGlossary, entry_id)
     lang = entry.lang
     db.session.delete(entry)
     db.session.commit()
@@ -397,7 +398,7 @@ def llm_status():
 @admin_required
 def users():
     from app.models import User
-    rows = User.query.order_by(User.created_at.desc()).all()
+    rows = db.session.execute(db.select(User).order_by(User.created_at.desc())).scalars().all()
     return render_template("admin_users.html", users=rows)
 
 
@@ -468,7 +469,7 @@ def create_milestone():
 @login_required
 @admin_required
 def update_milestone(row_id):
-    row = AiLearningMilestone.query.get_or_404(row_id)
+    row = db.get_or_404(AiLearningMilestone, row_id)
     data = request.get_json(silent=True) or {}
     row.title = (data.get("title") or row.title).strip()
     row.phase = (data.get("phase") or row.phase).strip()
@@ -481,7 +482,7 @@ def update_milestone(row_id):
 @login_required
 @admin_required
 def delete_milestone(row_id):
-    row = AiLearningMilestone.query.get_or_404(row_id)
+    row = db.get_or_404(AiLearningMilestone, row_id)
     db.session.delete(row)
     db.session.commit()
     return jsonify({"success": True})

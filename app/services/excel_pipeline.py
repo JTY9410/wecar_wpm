@@ -209,11 +209,13 @@ def load_price_table(xls):
 
 def rebuild_market_summary(week_no):
     """Aggregate AuctionRecord into MarketSummary — 낙찰가 기준 · 전주대비(%)."""
-    MarketSummary.query.delete()
-    records = AuctionRecord.query.filter(
-        AuctionRecord.hammer_price.isnot(None),
-        AuctionRecord.hammer_price > 0,
-    ).all()
+    db.session.execute(db.delete(MarketSummary))
+    records = db.session.execute(
+        db.select(AuctionRecord).where(
+            AuctionRecord.hammer_price.isnot(None),
+            AuctionRecord.hammer_price > 0,
+        )
+    ).scalars().all()
     if not records:
         db.session.commit()
         return 0
@@ -316,23 +318,23 @@ def process_weekly_upload(file_path, week_no, mode="append"):
     validate_excel_schema(df)
 
     if mode == "reset":
-        AuctionRecord.query.delete()
-        VehiclePriceTable.query.delete()
+        db.session.execute(db.delete(AuctionRecord))
+        db.session.execute(db.delete(VehiclePriceTable))
         db.session.commit()
     elif mode == "overwrite":
-        AuctionRecord.query.filter_by(week_no=week_no).delete()
+        db.session.execute(db.delete(AuctionRecord).where(AuctionRecord.week_no == week_no))
         db.session.commit()
 
     price_rows = load_price_table(xls)
     if price_rows and mode in ("reset", "overwrite"):
-        VehiclePriceTable.query.delete()
+        db.session.execute(db.delete(VehiclePriceTable))
     if price_rows:
         db.session.add_all(price_rows)
         db.session.commit()
 
     references = [
         {"car_name": r.car_name, "fuel": r.fuel, "imported": r.imported}
-        for r in VehiclePriceTable.query.all()
+        for r in db.session.execute(db.select(VehiclePriceTable)).scalars().all()
     ]
     records = parse_records(df, references, week_no)
     db.session.add_all(records)
@@ -346,17 +348,17 @@ def clear_all_auction_data(clear_history=True):
     """업로드된 경매/시세 데이터를 전부 삭제."""
     from app.models import UploadHistory, VehicleGrade, VehicleGradeDetail, VehicleMaker, VehicleModel, VehicleModelDetail
 
-    n_rec = AuctionRecord.query.delete()
-    n_sum = MarketSummary.query.delete()
-    n_price = VehiclePriceTable.query.delete()
-    VehicleGradeDetail.query.delete()
-    VehicleGrade.query.delete()
-    VehicleModelDetail.query.delete()
-    VehicleModel.query.delete()
-    VehicleMaker.query.delete()
+    n_rec = db.session.execute(db.delete(AuctionRecord)).rowcount or 0
+    n_sum = db.session.execute(db.delete(MarketSummary)).rowcount or 0
+    n_price = db.session.execute(db.delete(VehiclePriceTable)).rowcount or 0
+    db.session.execute(db.delete(VehicleGradeDetail))
+    db.session.execute(db.delete(VehicleGrade))
+    db.session.execute(db.delete(VehicleModelDetail))
+    db.session.execute(db.delete(VehicleModel))
+    db.session.execute(db.delete(VehicleMaker))
     n_hist = 0
     if clear_history:
-        n_hist = UploadHistory.query.delete()
+        n_hist = db.session.execute(db.delete(UploadHistory)).rowcount or 0
     db.session.commit()
     return {
         "ok": True,
@@ -375,11 +377,11 @@ def delete_upload_by_history(history_id):
     if hist is None:
         return {"ok": False, "error": "업로드 이력을 찾을 수 없습니다."}
     week_no = hist.week_no
-    n = AuctionRecord.query.filter_by(week_no=week_no).delete() if week_no else 0
+    n = (db.session.execute(db.delete(AuctionRecord).where(AuctionRecord.week_no == week_no)).rowcount or 0) if week_no else 0
     db.session.delete(hist)
     db.session.commit()
     # 남은 데이터 기준 재집계
-    remaining = AuctionRecord.query.order_by(AuctionRecord.id.desc()).first()
+    remaining = db.session.execute(db.select(AuctionRecord).order_by(AuctionRecord.id.desc())).scalars().first()
     summaries = rebuild_market_summary(remaining.week_no if remaining else week_no)
     return {
         "ok": True,

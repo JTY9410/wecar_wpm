@@ -1,5 +1,6 @@
 import pytest
 
+from app.extensions import db
 from app.models import AuctionRecord, MarketSummary, VehiclePriceTable
 from app.services.excel_pipeline import (ExcelValidationError,
                                          process_weekly_upload,
@@ -16,28 +17,28 @@ def test_upload_appends_records(app, db, mini):
     result = process_weekly_upload(mini, week_no="2026-W29", mode="append")
     # 4 rows, 1 dropped (no hammer price) → 3 records
     assert result["rows_ok"] == 3
-    assert AuctionRecord.query.count() == 3
-    assert MarketSummary.query.count() >= 1
-    assert VehiclePriceTable.query.count() >= 1
+    assert db.session.scalar(db.select(db.func.count()).select_from(AuctionRecord)) == 3
+    assert db.session.scalar(db.select(db.func.count()).select_from(MarketSummary)) >= 1
+    assert db.session.scalar(db.select(db.func.count()).select_from(VehiclePriceTable)) >= 1
 
 
 def test_accident_free_flag(app, db, mini):
     process_weekly_upload(mini, week_no="2026-W29", mode="append")
-    sonata = AuctionRecord.query.filter_by(car_name="현대 쏘나타 디 엣지").first()
+    sonata = db.session.execute(db.select(AuctionRecord).where(AuctionRecord.car_name == "현대 쏘나타 디 엣지")).scalar_one_or_none()
     assert sonata.is_accident_free is True
-    grandeur = AuctionRecord.query.filter_by(car_name="현대 그랜저HG 300").first()
+    grandeur = db.session.execute(db.select(AuctionRecord).where(AuctionRecord.car_name == "현대 그랜저HG 300")).scalar_one_or_none()
     assert grandeur.is_accident_free is False  # 골격판금 + 교환/판금 존재
 
 
 def test_overwrite_replaces_week(app, db, mini):
     process_weekly_upload(mini, week_no="2026-W29", mode="append")
     process_weekly_upload(mini, week_no="2026-W29", mode="overwrite")
-    assert AuctionRecord.query.filter_by(week_no="2026-W29").count() == 3
+    assert db.session.scalar(db.select(db.func.count()).select_from(AuctionRecord).where(AuctionRecord.week_no == "2026-W29")) == 3
 
 
 def test_upload_stores_hierarchy_columns(app, db, mini):
     process_weekly_upload(mini, week_no="2026-W29", mode="append")
-    row = AuctionRecord.query.filter_by(car_name="현대 그랜저HG 300").first()
+    row = db.session.execute(db.select(AuctionRecord).where(AuctionRecord.car_name == "현대 그랜저HG 300")).scalar_one_or_none()
     assert row.maker == "현대"
     assert row.model_name == "그랜저"
     assert row.mdetail_name == "그랜저HG"

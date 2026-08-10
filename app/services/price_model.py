@@ -35,7 +35,8 @@ class PriceModel:
 
     def train(self):
         from sklearn.ensemble import RandomForestRegressor
-        recs = AuctionRecord.query.filter(AuctionRecord.hammer_price.isnot(None)).all()
+        from app.extensions import db
+        recs = db.session.execute(db.select(AuctionRecord).where(AuctionRecord.hammer_price.isnot(None))).scalars().all()
         if len(recs) < 5:
             return {"trained": False, "reason": "insufficient_data", "count": len(recs)}
         rows = [{"maker": r.maker, "car_year": r.car_year, "car_km": r.car_km,

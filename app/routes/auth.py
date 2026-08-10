@@ -12,7 +12,7 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
-        user = User.query.filter_by(username=username).first()
+        user = db.session.execute(db.select(User).where(User.username == username)).scalar_one_or_none()
         if user and user.check_password(password):
             if user.role != "ADMIN" and not user.is_approved:
                 flash("관리자 승인 대기 중인 계정입니다. 승인 후 로그인할 수 있습니다.", "warning")
@@ -37,7 +37,7 @@ def signup():
         if not username or not password:
             flash("아이디와 비밀번호를 입력해주세요.", "danger")
             return render_template("signup.html", form=request.form)
-        if User.query.filter_by(username=username).first():
+        if db.session.execute(db.select(User).where(User.username == username)).scalar_one_or_none():
             flash("이미 사용 중인 아이디입니다.", "danger")
             return render_template("signup.html", form=request.form)
         user = User(

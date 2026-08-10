@@ -77,10 +77,11 @@ class HedonicModel:
         return names
 
     def train(self):
-        recs = AuctionRecord.query.filter(
+        from app.extensions import db
+        recs = db.session.execute(db.select(AuctionRecord).where(
             AuctionRecord.hammer_price.isnot(None),
             AuctionRecord.hammer_price > 0,
-        ).all()
+        )).scalars().all()
         rows, y = self._rows_from_records(recs)
         if len(rows) < 30:
             return {"trained": False, "reason": "insufficient_data", "count": len(rows)}

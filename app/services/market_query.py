@@ -2,8 +2,6 @@
 import re
 from collections import defaultdict
 
-from sqlalchemy import distinct
-
 from app.extensions import db
 from app.models import AuctionRecord, MarketSummary
 from app.services.i18n_translate import load_pack, translate
@@ -54,102 +52,130 @@ def _labeled(values, lang="ko"):
 
 
 def makers(lang="ko"):
-    rows = db.session.query(distinct(MarketSummary.maker)).filter(
-        MarketSummary.maker.isnot(None)).order_by(MarketSummary.maker).all()
-    return _labeled([r[0] for r in rows], lang)
+    rows = db.session.execute(
+        db.select(MarketSummary.maker).distinct()
+        .where(MarketSummary.maker.isnot(None))
+        .order_by(MarketSummary.maker)
+    ).scalars().all()
+    return _labeled(rows, lang)
 
 
 def models(maker, lang="ko"):
-    rows = db.session.query(distinct(MarketSummary.model_name)).filter(
-        MarketSummary.maker == maker,
-        MarketSummary.model_name.isnot(None)).order_by(MarketSummary.model_name).all()
-    return _labeled([r[0] for r in rows], lang)
+    rows = db.session.execute(
+        db.select(MarketSummary.model_name).distinct()
+        .where(
+            MarketSummary.maker == maker,
+            MarketSummary.model_name.isnot(None),
+        )
+        .order_by(MarketSummary.model_name)
+    ).scalars().all()
+    return _labeled(rows, lang)
 
 
 def mdetails(maker, model_name, lang="ko"):
-    rows = db.session.query(distinct(MarketSummary.mdetail_name)).filter(
-        MarketSummary.maker == maker, MarketSummary.model_name == model_name,
-        MarketSummary.mdetail_name.isnot(None)).order_by(MarketSummary.mdetail_name).all()
-    return _labeled([r[0] for r in rows], lang)
+    rows = db.session.execute(
+        db.select(MarketSummary.mdetail_name).distinct()
+        .where(
+            MarketSummary.maker == maker,
+            MarketSummary.model_name == model_name,
+            MarketSummary.mdetail_name.isnot(None),
+        )
+        .order_by(MarketSummary.mdetail_name)
+    ).scalars().all()
+    return _labeled(rows, lang)
 
 
 def grades(maker, model_name=None, mdetail=None, lang="ko"):
-    q = db.session.query(distinct(MarketSummary.grade_name)).filter(
-        MarketSummary.maker == maker, MarketSummary.grade_name.isnot(None))
+    stmt = (
+        db.select(MarketSummary.grade_name).distinct()
+        .where(MarketSummary.maker == maker, MarketSummary.grade_name.isnot(None))
+    )
     if model_name:
-        q = q.filter(MarketSummary.model_name == model_name)
+        stmt = stmt.where(MarketSummary.model_name == model_name)
     if mdetail:
-        q = q.filter(MarketSummary.mdetail_name == mdetail)
-    return _labeled([r[0] for r in q.order_by(MarketSummary.grade_name).all()], lang)
+        stmt = stmt.where(MarketSummary.mdetail_name == mdetail)
+    rows = db.session.execute(stmt.order_by(MarketSummary.grade_name)).scalars().all()
+    return _labeled(rows, lang)
 
 
 def gdetails(maker, model_name=None, mdetail=None, grade=None, lang="ko"):
-    q = db.session.query(distinct(MarketSummary.gdetail_name)).filter(
-        MarketSummary.maker == maker, MarketSummary.gdetail_name.isnot(None))
+    stmt = (
+        db.select(MarketSummary.gdetail_name).distinct()
+        .where(MarketSummary.maker == maker, MarketSummary.gdetail_name.isnot(None))
+    )
     if model_name:
-        q = q.filter(MarketSummary.model_name == model_name)
+        stmt = stmt.where(MarketSummary.model_name == model_name)
     if mdetail:
-        q = q.filter(MarketSummary.mdetail_name == mdetail)
+        stmt = stmt.where(MarketSummary.mdetail_name == mdetail)
     if grade:
-        q = q.filter(MarketSummary.grade_name == grade)
-    return _labeled([r[0] for r in q.order_by(MarketSummary.gdetail_name).all()], lang)
+        stmt = stmt.where(MarketSummary.grade_name == grade)
+    rows = db.session.execute(stmt.order_by(MarketSummary.gdetail_name)).scalars().all()
+    return _labeled(rows, lang)
 
 
 def years(maker, model_name=None, mdetail=None):
-    q = db.session.query(distinct(MarketSummary.car_year)).filter(
-        MarketSummary.maker == maker, MarketSummary.car_year.isnot(None))
+    stmt = (
+        db.select(MarketSummary.car_year).distinct()
+        .where(MarketSummary.maker == maker, MarketSummary.car_year.isnot(None))
+    )
     if model_name:
-        q = q.filter(MarketSummary.model_name == model_name)
+        stmt = stmt.where(MarketSummary.model_name == model_name)
     if mdetail:
-        q = q.filter(MarketSummary.mdetail_name == mdetail)
-    return [r[0] for r in q.order_by(MarketSummary.car_year.desc()).all()]
+        stmt = stmt.where(MarketSummary.mdetail_name == mdetail)
+    return db.session.execute(stmt.order_by(MarketSummary.car_year.desc())).scalars().all()
 
 
 def fuels(maker=None, lang="ko"):
-    q = db.session.query(distinct(MarketSummary.fuel)).filter(MarketSummary.fuel.isnot(None))
+    stmt = db.select(MarketSummary.fuel).distinct().where(MarketSummary.fuel.isnot(None))
     if maker:
-        q = q.filter(MarketSummary.maker == maker)
-    return _labeled([r[0] for r in q.order_by(MarketSummary.fuel).all()], lang)
+        stmt = stmt.where(MarketSummary.maker == maker)
+    rows = db.session.execute(stmt.order_by(MarketSummary.fuel)).scalars().all()
+    return _labeled(rows, lang)
 
 
-def _filter_summary(q, maker=None, model_name=None, mdetail_name=None, grade_name=None,
+def _filter_summary(stmt, maker=None, model_name=None, mdetail_name=None, grade_name=None,
                     gdetail_name=None, car_year=None, fuel=None, awd=None, km_bin=None,
                     is_accident_free=None):
     if maker:
-        q = q.filter(MarketSummary.maker == maker)
+        stmt = stmt.where(MarketSummary.maker == maker)
     if model_name:
-        q = q.filter(MarketSummary.model_name == model_name)
+        stmt = stmt.where(MarketSummary.model_name == model_name)
     if mdetail_name:
-        q = q.filter(MarketSummary.mdetail_name == mdetail_name)
+        stmt = stmt.where(MarketSummary.mdetail_name == mdetail_name)
     if grade_name:
-        q = q.filter(MarketSummary.grade_name == grade_name)
+        stmt = stmt.where(MarketSummary.grade_name == grade_name)
     if gdetail_name:
-        q = q.filter(MarketSummary.gdetail_name == gdetail_name)
+        stmt = stmt.where(MarketSummary.gdetail_name == gdetail_name)
     if car_year not in (None, "") and _safe_int(car_year) is not None:
-        q = q.filter(MarketSummary.car_year == _safe_int(car_year))
+        stmt = stmt.where(MarketSummary.car_year == _safe_int(car_year))
     if fuel:
-        q = q.filter(MarketSummary.fuel == fuel)
+        stmt = stmt.where(MarketSummary.fuel == fuel)
     if awd:
-        q = q.filter(MarketSummary.awd == awd)
+        stmt = stmt.where(MarketSummary.awd == awd)
     if km_bin:
-        q = q.filter(MarketSummary.km_bin == km_bin)
+        stmt = stmt.where(MarketSummary.km_bin == km_bin)
     if is_accident_free is not None:
-        q = q.filter(MarketSummary.is_accident_free == bool(is_accident_free))
-    return q
+        stmt = stmt.where(MarketSummary.is_accident_free == bool(is_accident_free))
+    return stmt
 
 
 def grid(maker=None, model_name=None, mdetail_name=None, car_name=None,
          car_year=None, fuel=None, awd=None, grade_name=None, gdetail_name=None,
          lang="ko"):
-    q = _filter_summary(
-        MarketSummary.query, maker=maker, model_name=model_name,
+    stmt = _filter_summary(
+        db.select(MarketSummary), maker=maker, model_name=model_name,
         mdetail_name=mdetail_name or car_name, grade_name=grade_name,
         gdetail_name=gdetail_name, car_year=car_year, fuel=fuel, awd=awd,
     )
-    rows = q.filter(
-        MarketSummary.hammer_avg.isnot(None),
-        MarketSummary.hammer_avg > 0,
-    ).order_by(MarketSummary.car_year.desc(), MarketSummary.km_bin).limit(500).all()
+    stmt = (
+        stmt.where(
+            MarketSummary.hammer_avg.isnot(None),
+            MarketSummary.hammer_avg > 0,
+        )
+        .order_by(MarketSummary.car_year.desc(), MarketSummary.km_bin)
+        .limit(500)
+    )
+    rows = db.session.execute(stmt).scalars().all()
 
     def _tr(value):
         # polish=False: 그리드 N건마다 Gemini를 부르면 워커 타임아웃 발생
@@ -194,29 +220,29 @@ def matrix(maker=None, model_name=None, mdetail_name=None, grade_name=None,
         return {"years": [], "buckets": [], "matrix": {}, "counts": {}, "total_samples": 0,
                 "price_basis": "hammer"}
 
-    q = AuctionRecord.query.filter(
+    stmt = db.select(AuctionRecord).where(
         AuctionRecord.hammer_price.isnot(None),
         AuctionRecord.hammer_price > 0,
         AuctionRecord.maker == maker,
     )
     if model_name:
-        q = q.filter(AuctionRecord.model_name == model_name)
+        stmt = stmt.where(AuctionRecord.model_name == model_name)
     if mdetail_name:
-        q = q.filter(AuctionRecord.mdetail_name == mdetail_name)
+        stmt = stmt.where(AuctionRecord.mdetail_name == mdetail_name)
     if grade_name:
-        q = q.filter(AuctionRecord.grade_name == grade_name)
+        stmt = stmt.where(AuctionRecord.grade_name == grade_name)
     if gdetail_name:
-        q = q.filter(AuctionRecord.gdetail_name == gdetail_name)
+        stmt = stmt.where(AuctionRecord.gdetail_name == gdetail_name)
     if fuel:
-        q = q.filter(AuctionRecord.fuel == fuel)
+        stmt = stmt.where(AuctionRecord.fuel == fuel)
     if awd:
-        q = q.filter(AuctionRecord.awd == awd)
+        stmt = stmt.where(AuctionRecord.awd == awd)
     if accident_free == "1":
-        q = q.filter(AuctionRecord.is_accident_free.is_(True))
+        stmt = stmt.where(AuctionRecord.is_accident_free.is_(True))
     elif accident_free == "0":
-        q = q.filter(AuctionRecord.is_accident_free.is_(False))
+        stmt = stmt.where(AuctionRecord.is_accident_free.is_(False))
 
-    rows = q.all()
+    rows = db.session.execute(stmt).scalars().all()
     if not rows:
         return {"years": [], "buckets": [], "matrix": {}, "counts": {}, "total_samples": 0,
                 "price_basis": "hammer"}
@@ -271,34 +297,36 @@ def samples(maker=None, model_name=None, mdetail_name=None, grade_name=None,
             gdetail_name=None, car_year=None, km_bin=None, fuel=None, awd=None,
             accident_free=None, lang="ko", limit=200):
     """세부내역 — 낙찰가 > 0 인 경매 원장만."""
-    q = AuctionRecord.query.filter(
+    stmt = db.select(AuctionRecord).where(
         AuctionRecord.hammer_price.isnot(None),
         AuctionRecord.hammer_price > 0,
     )
     if maker:
-        q = q.filter(AuctionRecord.maker == maker)
+        stmt = stmt.where(AuctionRecord.maker == maker)
     if model_name:
-        q = q.filter(AuctionRecord.model_name == model_name)
+        stmt = stmt.where(AuctionRecord.model_name == model_name)
     if mdetail_name:
-        q = q.filter(AuctionRecord.mdetail_name == mdetail_name)
+        stmt = stmt.where(AuctionRecord.mdetail_name == mdetail_name)
     if grade_name:
-        q = q.filter(AuctionRecord.grade_name == grade_name)
+        stmt = stmt.where(AuctionRecord.grade_name == grade_name)
     if gdetail_name:
-        q = q.filter(AuctionRecord.gdetail_name == gdetail_name)
+        stmt = stmt.where(AuctionRecord.gdetail_name == gdetail_name)
     if car_year not in (None, "") and _safe_int(car_year) is not None:
-        q = q.filter(AuctionRecord.car_year == _safe_int(car_year))
+        stmt = stmt.where(AuctionRecord.car_year == _safe_int(car_year))
     if km_bin:
-        q = q.filter(AuctionRecord.km_bin == km_bin)
+        stmt = stmt.where(AuctionRecord.km_bin == km_bin)
     if fuel:
-        q = q.filter(AuctionRecord.fuel == fuel)
+        stmt = stmt.where(AuctionRecord.fuel == fuel)
     if awd:
-        q = q.filter(AuctionRecord.awd == awd)
+        stmt = stmt.where(AuctionRecord.awd == awd)
     if accident_free == "1":
-        q = q.filter(AuctionRecord.is_accident_free.is_(True))
+        stmt = stmt.where(AuctionRecord.is_accident_free.is_(True))
     elif accident_free == "0":
-        q = q.filter(AuctionRecord.is_accident_free.is_(False))
+        stmt = stmt.where(AuctionRecord.is_accident_free.is_(False))
 
-    rows = q.order_by(AuctionRecord.hammer_price.desc()).limit(limit).all()
+    rows = db.session.execute(
+        stmt.order_by(AuctionRecord.hammer_price.desc()).limit(limit)
+    ).scalars().all()
 
     def _tr(value):
         return translate(value, lang, polish=False) if value and lang != "ko" else value
@@ -340,29 +368,29 @@ def car_names(maker, model_name, lang="ko"):
 def price_trend(maker=None, model_name=None, mdetail_name=None, grade_name=None,
                  gdetail_name=None, car_year=None, fuel=None, awd=None, weeks=8):
     """차종 조합의 주차별(week_no) 낙찰가 평균 추이. km_bin은 주차별 표본 수 확보를 위해 제외."""
-    q = AuctionRecord.query.filter(
+    stmt = db.select(AuctionRecord).where(
         AuctionRecord.hammer_price.isnot(None),
         AuctionRecord.hammer_price > 0,
         AuctionRecord.week_no.isnot(None),
     )
     if maker:
-        q = q.filter(AuctionRecord.maker == maker)
+        stmt = stmt.where(AuctionRecord.maker == maker)
     if model_name:
-        q = q.filter(AuctionRecord.model_name == model_name)
+        stmt = stmt.where(AuctionRecord.model_name == model_name)
     if mdetail_name:
-        q = q.filter(AuctionRecord.mdetail_name == mdetail_name)
+        stmt = stmt.where(AuctionRecord.mdetail_name == mdetail_name)
     if grade_name:
-        q = q.filter(AuctionRecord.grade_name == grade_name)
+        stmt = stmt.where(AuctionRecord.grade_name == grade_name)
     if gdetail_name:
-        q = q.filter(AuctionRecord.gdetail_name == gdetail_name)
+        stmt = stmt.where(AuctionRecord.gdetail_name == gdetail_name)
     if car_year not in (None, "") and _safe_int(car_year) is not None:
-        q = q.filter(AuctionRecord.car_year == _safe_int(car_year))
+        stmt = stmt.where(AuctionRecord.car_year == _safe_int(car_year))
     if fuel:
-        q = q.filter(AuctionRecord.fuel == fuel)
+        stmt = stmt.where(AuctionRecord.fuel == fuel)
     if awd:
-        q = q.filter(AuctionRecord.awd == awd)
+        stmt = stmt.where(AuctionRecord.awd == awd)
 
-    rows = q.all()
+    rows = db.session.execute(stmt).scalars().all()
     by_week = defaultdict(list)
     for r in rows:
         by_week[r.week_no].append(r.hammer_price)

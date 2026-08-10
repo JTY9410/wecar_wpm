@@ -37,14 +37,14 @@ def _env_key(provider):
 
 def resolve_api_key(provider):
     """DB 패널 키 우선, 없으면 .env SSOT."""
-    row = LLMConfig.query.filter_by(provider=provider).first()
+    row = db.session.execute(db.select(LLMConfig).where(LLMConfig.provider == provider)).scalar_one_or_none()
     if row and row.api_key:
         return row.api_key.strip()
     return (_env_key(provider) or "").strip()
 
 
 def resolve_model(provider):
-    row = LLMConfig.query.filter_by(provider=provider).first()
+    row = db.session.execute(db.select(LLMConfig).where(LLMConfig.provider == provider)).scalar_one_or_none()
     if row and row.model_name:
         return row.model_name.strip()
     return DEFAULT_MODELS.get(provider, "")
@@ -56,7 +56,7 @@ def key_status():
     out = []
     for name in PROVIDERS:
         key = resolve_api_key(name)
-        row = LLMConfig.query.filter_by(provider=name).first()
+        row = db.session.execute(db.select(LLMConfig).where(LLMConfig.provider == name)).scalar_one_or_none()
         out.append({
             "provider": name,
             "label": {"gemini": "Google Gemini", "openai": "OpenAI ChatGPT",
@@ -193,7 +193,7 @@ _PROVIDERS = {p.name: p for p in (GeminiProvider(), OpenAIProvider(), ClaudeProv
 
 
 def active_provider_name():
-    row = LLMConfig.query.filter_by(is_active=True).first()
+    row = db.session.execute(db.select(LLMConfig).where(LLMConfig.is_active.is_(True))).scalar_one_or_none()
     return row.provider if row else "gemini"
 
 
@@ -208,7 +208,7 @@ def get_provider(name=None):
 def set_active(name):
     if name not in _PROVIDERS:
         raise LLMError(f"알 수 없는 provider: {name}")
-    for row in LLMConfig.query.all():
+    for row in db.session.execute(db.select(LLMConfig)).scalars():
         row.is_active = (row.provider == name)
     db.session.commit()
 
@@ -217,7 +217,7 @@ def save_provider_settings(provider, api_key=None, model_name=None, clear_key=Fa
     """관리자 패널에서 API 키/모델 저장. api_key=None이면 키 유지, clear_key면 DB키 삭제(.env 폴백)."""
     if provider not in PROVIDERS:
         raise LLMError(f"알 수 없는 provider: {provider}")
-    row = LLMConfig.query.filter_by(provider=provider).first()
+    row = db.session.execute(db.select(LLMConfig).where(LLMConfig.provider == provider)).scalar_one_or_none()
     if row is None:
         row = LLMConfig(provider=provider, is_active=False,
                         model_name=DEFAULT_MODELS[provider])

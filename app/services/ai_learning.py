@@ -17,20 +17,22 @@ PHASES = ["외부AI 의존", "전환중", "자체학습 완료"]
 
 
 def get_progress_stats():
-    retrain_logs = SyncLog.query.filter(
+    retrain_logs = db.session.scalar(db.select(db.func.count()).select_from(SyncLog).where(
         SyncLog.sync_type.in_(["retrain", "ai_retrain", "model_retrain"])
-    ).count()
-    upload_ok = UploadHistory.query.filter(
+    ))
+    upload_ok = db.session.scalar(db.select(db.func.count()).select_from(UploadHistory).where(
         UploadHistory.status.in_(["SUCCESS", "ok", "done", "완료"])
-    ).count()
+    ))
     if upload_ok == 0:
-        upload_ok = UploadHistory.query.count()
+        upload_ok = db.session.scalar(db.select(db.func.count()).select_from(UploadHistory))
     retrain_count = retrain_logs + upload_ok
 
-    last_upload = (
-        UploadHistory.query.order_by(UploadHistory.created_at.desc()).first()
-    )
-    last_sync = SyncLog.query.order_by(SyncLog.created_at.desc()).first()
+    last_upload = db.session.execute(
+        db.select(UploadHistory).order_by(UploadHistory.created_at.desc())
+    ).scalar_one_or_none()
+    last_sync = db.session.execute(
+        db.select(SyncLog).order_by(SyncLog.created_at.desc())
+    ).scalar_one_or_none()
     last_retrain_at = None
     if last_upload and last_upload.created_at:
         last_retrain_at = last_upload.created_at
@@ -38,11 +40,11 @@ def get_progress_stats():
         if last_retrain_at is None or last_sync.created_at > last_retrain_at:
             last_retrain_at = last_sync.created_at
 
-    training_samples = AuctionRecord.query.filter(
+    training_samples = db.session.scalar(db.select(db.func.count()).select_from(AuctionRecord).where(
         AuctionRecord.hammer_price.isnot(None),
         AuctionRecord.hammer_price > 0,
-    ).count()
-    gemini_reports = GeminiReportCache.query.count()
+    ))
+    gemini_reports = db.session.scalar(db.select(db.func.count()).select_from(GeminiReportCache))
     # 도매: 정량은 자체 모델·통계, 정성은 Gemini 리포트 캐시
     local_analysis_count = training_samples
     gemini_analysis_count = gemini_reports
@@ -64,13 +66,13 @@ def get_progress_stats():
 
 
 def list_milestones():
-    return AiLearningMilestone.query.order_by(
+    return db.session.execute(db.select(AiLearningMilestone).order_by(
         AiLearningMilestone.recorded_date.desc(), AiLearningMilestone.id.desc()
-    ).all()
+    )).scalars().all()
 
 
 def seed_default_milestone():
-    if AiLearningMilestone.query.count() > 0:
+    if db.session.scalar(db.select(db.func.count()).select_from(AiLearningMilestone)) > 0:
         return
     db.session.add(
         AiLearningMilestone(

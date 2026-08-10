@@ -20,7 +20,7 @@ _PROVIDER = "google_translate"
 
 
 def resolve_api_key() -> str:
-    row = LLMConfig.query.filter_by(provider=_PROVIDER).first()
+    row = db.session.execute(db.select(LLMConfig).where(LLMConfig.provider == _PROVIDER)).scalar_one_or_none()
     if row and row.api_key:
         return row.api_key.strip()
     return (Config.GOOGLE_TRANSLATE_API_KEY or "").strip()
@@ -31,7 +31,7 @@ def is_configured() -> bool:
 
 
 def save_api_key(api_key=None, clear_key=False):
-    row = LLMConfig.query.filter_by(provider=_PROVIDER).first()
+    row = db.session.execute(db.select(LLMConfig).where(LLMConfig.provider == _PROVIDER)).scalar_one_or_none()
     if row is None:
         row = LLMConfig(provider=_PROVIDER, is_active=False)
         db.session.add(row)

@@ -29,7 +29,7 @@ def _eq_or_null(column, value):
 
 
 def _filter_trim(q, *, maker, model_name, mdetail_name, grade_name, gdetail_name):
-    return q.filter(
+    return q.where(
         _eq_or_null(AuctionRecord.maker, maker),
         _eq_or_null(AuctionRecord.model_name, model_name),
         _eq_or_null(AuctionRecord.mdetail_name, mdetail_name),
@@ -82,7 +82,7 @@ def fetch_trim_auction_details(
     def _week_rows(week_no):
         if not week_no:
             return []
-        q = AuctionRecord.query.filter(AuctionRecord.week_no == week_no)
+        q = db.select(AuctionRecord).where(AuctionRecord.week_no == week_no)
         q = _filter_trim(
             q,
             maker=maker,
@@ -91,10 +91,10 @@ def fetch_trim_auction_details(
             grade_name=grade_name,
             gdetail_name=gdetail_name,
         )
-        rows = q.order_by(
+        rows = db.session.execute(q.order_by(
             AuctionRecord.hammer_price.desc(),
             AuctionRecord.id.desc(),
-        ).limit(DETAIL_LIMIT).all()
+        ).limit(DETAIL_LIMIT)).scalars().all()
         return [_serialize_record(r) for r in rows]
 
     current_items = _week_rows(current_week)
@@ -118,15 +118,14 @@ def fetch_trim_auction_details(
 
 
 def _distinct_weeks(limit=12):
-    rows = (
-        db.session.query(AuctionRecord.week_no)
-        .filter(AuctionRecord.week_no.isnot(None))
+    rows = db.session.execute(
+        db.select(AuctionRecord.week_no)
         .distinct()
+        .where(AuctionRecord.week_no.isnot(None))
         .order_by(AuctionRecord.week_no.desc())
         .limit(limit)
-        .all()
-    )
-    return [r[0] for r in rows if r[0]]
+    ).scalars().all()
+    return [r for r in rows if r]
 
 
 def _aggregate_week(week_no):
@@ -135,8 +134,8 @@ def _aggregate_week(week_no):
     gdetail이 비어 있으면 grade를 세부 단위로 사용하되, 키에는 계층 전체를 포함해
     서로 다른 세부등급이 모델명만으로 합쳐지지 않게 한다.
     """
-    rows = (
-        db.session.query(
+    rows = db.session.execute(
+        db.select(
             AuctionRecord.maker,
             AuctionRecord.model_name,
             AuctionRecord.mdetail_name,
@@ -145,7 +144,7 @@ def _aggregate_week(week_no):
             func.avg(AuctionRecord.hammer_price),
             func.count(AuctionRecord.id),
         )
-        .filter(
+        .where(
             AuctionRecord.week_no == week_no,
             AuctionRecord.hammer_price.isnot(None),
             AuctionRecord.hammer_price > 0,
@@ -156,8 +155,7 @@ def _aggregate_week(week_no):
             ),
         )
         .group_by(*_GROUP_KEYS)
-        .all()
-    )
+    ).all()
     out = {}
     for maker, model, mdetail, grade, gdetail, avg, cnt in rows:
         key = (maker, model, mdetail, grade, gdetail)
@@ -295,12 +293,10 @@ def _enrich_price_alerts_hedonic(alerts, week_no):
 
     try:
         for r in alerts:
-            q = (
-                AuctionRecord.query.filter(
-                    AuctionRecord.week_no == week_no,
-                    AuctionRecord.hammer_price.isnot(None),
-                    AuctionRecord.hammer_price > 0,
-                )
+            q = db.select(AuctionRecord).where(
+                AuctionRecord.week_no == week_no,
+                AuctionRecord.hammer_price.isnot(None),
+                AuctionRecord.hammer_price > 0,
             )
             q = _filter_trim(
                 q,
@@ -311,7 +307,7 @@ def _enrich_price_alerts_hedonic(alerts, week_no):
                 gdetail_name=r.get("gdetail_name"),
             ).limit(40)
             residuals = []
-            for rec in q.all():
+            for rec in db.session.execute(q).scalars().all():
                 detail = hm.predict_detail(
                     maker=rec.maker,
                     car_year=rec.car_year,

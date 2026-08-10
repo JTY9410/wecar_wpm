@@ -90,7 +90,7 @@ def _is_quality_ok(text, lang, source=None):
 
 
 def _learned_lookup(text, lang):
-    row = LearnedGlossary.query.filter_by(source_hash=_hash(text), lang=lang).first()
+    row = db.session.execute(db.select(LearnedGlossary).where(LearnedGlossary.source_hash == _hash(text), LearnedGlossary.lang == lang)).scalar_one_or_none()
     if not row:
         return None
     if _is_quality_ok(row.translated_text, lang, text):
@@ -129,12 +129,12 @@ def _static_lookup(text, lang):
 
 def _glossary_pairs(lang, limit=20):
     pairs = list(load_vehicle_glossary(lang).items())[:8]
-    learned_rows = (
-        LearnedGlossary.query.filter_by(lang=lang)
+    learned_rows = db.session.execute(
+        db.select(LearnedGlossary)
+        .where(LearnedGlossary.lang == lang)
         .order_by(LearnedGlossary.updated_at.desc())
         .limit(16)
-        .all()
-    )
+    ).scalars().all()
     for r in learned_rows:
         if _is_quality_ok(r.translated_text, lang, r.source_text):
             pairs.append((r.source_text, r.translated_text))
@@ -151,8 +151,9 @@ def _glossary_pairs(lang, limit=20):
 
 
 def _cache_examples(lang, limit=8):
-    rows = (
-        TranslationCache.query.filter(
+    rows = db.session.execute(
+        db.select(TranslationCache)
+        .where(
             TranslationCache.lang == lang,
             TranslationCache.source_text != TranslationCache.translated_text,
         )
@@ -162,8 +163,7 @@ def _cache_examples(lang, limit=8):
             TranslationCache.id.desc(),
         )
         .limit(limit * 3)
-        .all()
-    )
+    ).scalars().all()
     return [
         (r.source_text, r.translated_text)
         for r in rows
@@ -262,7 +262,7 @@ def promote_to_glossary(source_text, lang, translated_text, promoted_from="auto"
     if translated_text == source_text:
         return None
     h = _hash(source_text)
-    row = LearnedGlossary.query.filter_by(source_hash=h, lang=lang).first()
+    row = db.session.execute(db.select(LearnedGlossary).where(LearnedGlossary.source_hash == h, LearnedGlossary.lang == lang)).scalar_one_or_none()
     if row:
         row.translated_text = translated_text
         row.promoted_from = promoted_from
@@ -317,7 +317,7 @@ def translate(text, lang, *, remote=True, polish=None):
         return static
 
     h = _hash(text)
-    row = TranslationCache.query.filter_by(source_hash=h, lang=lang).first()
+    row = db.session.execute(db.select(TranslationCache).where(TranslationCache.source_hash == h, TranslationCache.lang == lang)).scalar_one_or_none()
     if row:
         if not _is_quality_ok(row.translated_text, lang, text):
             try:

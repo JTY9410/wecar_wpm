@@ -1,7 +1,14 @@
-from app.models import GeminiReportCache, Listing
+from app.extensions import db
+from app.models import GeminiReportCache, LearnedGlossary, Listing, TranslationCache
 from app.services import gemini_report, i18n_translate
 from app.services.i18n_translate import translate
 from app.services.llm_hub import LLMError
+
+
+def _en_cache_count():
+    return db.session.scalar(
+        db.select(db.func.count()).select_from(TranslationCache).where(TranslationCache.lang == "en")
+    )
 
 
 def _listing(db):
@@ -41,8 +48,7 @@ def test_translate_passthrough_is_not_cached(app, db):
     # cached, so a later successful translation isn't permanently masked.
     out = translate("사고 없음", "en")
     assert out == "사고 없음"
-    from app.models import TranslationCache
-    assert TranslationCache.query.filter_by(lang="en").count() == 0
+    assert _en_cache_count() == 0
 
 
 def test_load_pack():
@@ -60,9 +66,7 @@ def test_glossary_pairs_reuse_static_ui_dictionary(app, db):
 def test_static_lookup_reused_for_known_ui_values(app, db):
     """정적 사전에 있는 값(예: '로그인')은 API 호출 없이 검수된 번역을 그대로 사용."""
     assert translate("로그인", "en") == "Login"
-    from app.models import TranslationCache
-
-    assert TranslationCache.query.filter_by(lang="en").count() == 0
+    assert _en_cache_count() == 0
 
 
 def test_vehicle_glossary_translates_maker_model_trim(app, db):
@@ -72,9 +76,7 @@ def test_vehicle_glossary_translates_maker_model_trim(app, db):
     assert translate("그랜저", "en") == "Grandeur"
     assert translate("프레스티지", "ja") == "プレステージ"
     assert translate("현대 그랜저HG 300", "en") == "Hyundai Grandeur HG 300"
-    from app.models import TranslationCache
-
-    assert TranslationCache.query.filter_by(lang="en").count() == 0
+    assert _en_cache_count() == 0
 
 
 def test_quality_ok_rejects_ui_dump_and_length_explosion():
@@ -116,8 +118,7 @@ def test_hangul_result_is_not_cached(app, db, monkeypatch):
     )
     out = translate("프론트펜더XYZ", "en")
     assert out == "프론트펜더"
-    from app.models import TranslationCache
-    assert TranslationCache.query.filter_by(lang="en").count() == 0
+    assert _en_cache_count() == 0
 
 
 def test_auto_promote_to_learned_glossary_after_threshold(app, db, monkeypatch):
@@ -128,11 +129,17 @@ def test_auto_promote_to_learned_glossary_after_threshold(app, db, monkeypatch):
     src = "프론트펜더 판금 자동학습"
     for _ in range(i18n_translate.PROMOTE_THRESHOLD):
         assert translate(src, "en") == "Front fender detail"
-    from app.models import LearnedGlossary, TranslationCache
-    row = TranslationCache.query.filter_by(lang="en").first()
+    row = db.session.execute(
+        db.select(TranslationCache).where(TranslationCache.lang == "en")
+    ).scalars().first()
     assert row is not None
     assert row.hit_count >= i18n_translate.PROMOTE_THRESHOLD
-    learned = LearnedGlossary.query.filter_by(lang="en", source_text=src).first()
+    learned = db.session.execute(
+        db.select(LearnedGlossary).where(
+            LearnedGlossary.lang == "en",
+            LearnedGlossary.source_text == src,
+        )
+    ).scalar_one_or_none()
     assert learned is not None
     assert learned.promoted_from == "auto"
 

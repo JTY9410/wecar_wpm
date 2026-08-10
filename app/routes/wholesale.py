@@ -7,6 +7,7 @@ from functools import wraps
 
 from flask import Blueprint, current_app, jsonify, request
 
+from app.extensions import db
 from app.models import MarketSummary, VehicleGrade, VehicleGradeDetail, VehicleMaker, VehicleModel, VehicleModelDetail
 from app.services.car_code import build_car_code
 from app.services import market_query
@@ -55,33 +56,33 @@ def prices():
     awd = request.args.get("awd")
     km_bin = request.args.get("km_bin")
 
-    q = MarketSummary.query.filter(
+    q = db.select(MarketSummary).where(
         MarketSummary.hammer_avg.isnot(None),
         MarketSummary.hammer_avg > 0,
     )
     if car_code:
-        q = q.filter(MarketSummary.car_code == car_code)
+        q = q.where(MarketSummary.car_code == car_code)
     if maker:
-        q = q.filter(MarketSummary.maker == maker)
+        q = q.where(MarketSummary.maker == maker)
     if model:
-        q = q.filter(MarketSummary.model_name == model)
+        q = q.where(MarketSummary.model_name == model)
     if mdetail:
-        q = q.filter(MarketSummary.mdetail_name == mdetail)
+        q = q.where(MarketSummary.mdetail_name == mdetail)
     if grade:
-        q = q.filter(MarketSummary.grade_name == grade)
+        q = q.where(MarketSummary.grade_name == grade)
     if gdetail:
-        q = q.filter(MarketSummary.gdetail_name == gdetail)
+        q = q.where(MarketSummary.gdetail_name == gdetail)
     if car_year:
-        q = q.filter(MarketSummary.car_year == car_year)
+        q = q.where(MarketSummary.car_year == car_year)
     if fuel:
-        q = q.filter(MarketSummary.fuel == fuel)
+        q = q.where(MarketSummary.fuel == fuel)
     if awd:
-        q = q.filter(MarketSummary.awd == awd)
+        q = q.where(MarketSummary.awd == awd)
     if km_bin:
-        q = q.filter(MarketSummary.km_bin == km_bin)
+        q = q.where(MarketSummary.km_bin == km_bin)
 
     limit = min(request.args.get("limit", 100, type=int), 500)
-    rows = q.order_by(MarketSummary.car_year.desc()).limit(limit).all()
+    rows = db.session.execute(q.order_by(MarketSummary.car_year.desc()).limit(limit)).scalars().all()
     items = [{
         "car_code": r.car_code,
         "maker": r.maker,
@@ -125,27 +126,27 @@ def lookup():
             else None
         ),
     )
-    q = MarketSummary.query.filter_by(car_code=code)
+    q = db.select(MarketSummary).where(MarketSummary.car_code == code)
     # 해시 미일치 시 차원 컬럼으로 폴백 조회
-    if q.count() == 0:
-        q = MarketSummary.query
+    if db.session.scalar(db.select(db.func.count()).select_from(MarketSummary).where(MarketSummary.car_code == code)) == 0:
+        q = db.select(MarketSummary)
         if request.args.get("maker"):
-            q = q.filter_by(maker=request.args.get("maker"))
+            q = q.where(MarketSummary.maker == request.args.get("maker"))
         if request.args.get("model"):
-            q = q.filter_by(model_name=request.args.get("model"))
+            q = q.where(MarketSummary.model_name == request.args.get("model"))
         if request.args.get("mdetail"):
-            q = q.filter_by(mdetail_name=request.args.get("mdetail"))
+            q = q.where(MarketSummary.mdetail_name == request.args.get("mdetail"))
         if request.args.get("grade"):
-            q = q.filter_by(grade_name=request.args.get("grade"))
+            q = q.where(MarketSummary.grade_name == request.args.get("grade"))
         if request.args.get("gdetail"):
-            q = q.filter_by(gdetail_name=request.args.get("gdetail"))
+            q = q.where(MarketSummary.gdetail_name == request.args.get("gdetail"))
         if request.args.get("car_year", type=int):
-            q = q.filter_by(car_year=request.args.get("car_year", type=int))
+            q = q.where(MarketSummary.car_year == request.args.get("car_year", type=int))
         if request.args.get("fuel"):
-            q = q.filter_by(fuel=request.args.get("fuel"))
+            q = q.where(MarketSummary.fuel == request.args.get("fuel"))
         if request.args.get("awd"):
-            q = q.filter_by(awd=request.args.get("awd"))
-    rows = q.limit(100).all()
+            q = q.where(MarketSummary.awd == request.args.get("awd"))
+    rows = db.session.execute(q.limit(100)).scalars().all()
     return jsonify({
         "ok": True,
         "car_code": code,
@@ -166,7 +167,7 @@ def lookup():
 @wholesale_bp.route("/codes/makers")
 @require_api_key
 def codes_makers():
-    rows = VehicleMaker.query.order_by(VehicleMaker.maker_name).all()
+    rows = db.session.execute(db.select(VehicleMaker).order_by(VehicleMaker.maker_name)).scalars().all()
     return jsonify({"ok": True, "items": [
         {"maker_no": r.maker_no, "maker_name": r.maker_name} for r in rows
     ]})
@@ -176,10 +177,10 @@ def codes_makers():
 @require_api_key
 def codes_models():
     maker_no = request.args.get("maker_no")
-    q = VehicleModel.query
+    q = db.select(VehicleModel)
     if maker_no:
-        q = q.filter_by(maker_no=maker_no)
-    rows = q.order_by(VehicleModel.model_name).all()
+        q = q.where(VehicleModel.maker_no == maker_no)
+    rows = db.session.execute(q.order_by(VehicleModel.model_name)).scalars().all()
     return jsonify({"ok": True, "items": [
         {"model_no": r.model_no, "maker_no": r.maker_no, "model_name": r.model_name} for r in rows
     ]})
