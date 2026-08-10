@@ -165,6 +165,12 @@ def test_briefing_page(client, db):
     assert "BRIEFING" in body or "브리핑" in body
     assert "익스클루시브" in body or "세부" in body
     assert "briefing-detail-btn" in body or "세부현황" in body
+    # 스크립트는 Bootstrap 로드 이후(scripts 블록)에 있어야 보기 버튼이 동작한다
+    bootstrap_idx = body.find("bootstrap.bundle.min.js")
+    assert body.count("briefing-detail-btn") >= 2
+    assert "getOrCreateInstance" in body
+    assert bootstrap_idx != -1
+    assert body.rfind("openDetail") > bootstrap_idx
 
 
 def test_fetch_trim_auction_details(app, db):

@@ -1416,6 +1416,38 @@ body.app-body {
     max-width: 100%;
 }
 
+/* 주간브리핑: 헤더 잘림 방지 · 열 최소 너비 확보 */
+.briefing-table-wrap {
+    overflow-x: auto;
+}
+.briefing-table {
+    width: max-content;
+    min-width: 100%;
+}
+.briefing-table thead th {
+    white-space: nowrap;
+    vertical-align: middle;
+    padding-inline: 0.75rem;
+    min-width: 4.5rem;
+}
+.briefing-table thead th:nth-child(3),
+.briefing-table thead th:nth-child(4),
+.briefing-table thead th:nth-child(5) {
+    min-width: 7rem;
+}
+.briefing-table thead th:nth-child(6),
+.briefing-table thead th:nth-child(7) {
+    min-width: 8.5rem;
+}
+.briefing-table td {
+    white-space: nowrap;
+}
+#briefingDetailModal .table thead th {
+    white-space: nowrap;
+    min-width: 4.5rem;
+    padding-inline: 0.75rem;
+}
+
 .admin-table-panel,
 .table-responsive.data-scroll {
     overflow: auto;

@@ -61,14 +61,19 @@
     {% if data.hedonic_available %}<span class="badge text-bg-info ms-1">Hedonic</span>{% endif %}
   </h5>
   {% if data.price_alerts %}
-  <div class="table-responsive">
-    <table class="table table-sm table-hover align-middle mb-0">
+  <div class="table-responsive briefing-table-wrap">
+    <table class="table table-sm table-hover align-middle mb-0 briefing-table">
       <thead><tr>
-        <th>{{ t('maker') }}</th><th>{{ t('model') }}</th>
-        <th>{{ t('mdetail') }}</th><th>{{ t('grade') }}</th><th>{{ t('gdetail') }}</th>
-        <th>{{ t('briefing_cur_price') }}</th><th>{{ t('briefing_prev_price') }}</th><th>{{ t('mom') }}</th>
-        <th>Hedonic</th>
-        <th>{{ t('briefing_detail_col') }}</th>
+        <th class="text-nowrap">{{ t('maker') }}</th>
+        <th class="text-nowrap">{{ t('model') }}</th>
+        <th class="text-nowrap">{{ t('mdetail') }}</th>
+        <th class="text-nowrap">{{ t('grade') }}</th>
+        <th class="text-nowrap">{{ t('gdetail') }}</th>
+        <th class="text-nowrap">{{ t('briefing_cur_price') }}</th>
+        <th class="text-nowrap">{{ t('briefing_prev_price') }}</th>
+        <th class="text-nowrap">{{ t('mom') }}</th>
+        <th class="text-nowrap">Hedonic</th>
+        <th class="text-nowrap">{{ t('briefing_detail_col') }}</th>
       </tr></thead>
       <tbody>
         {% for r in data.price_alerts %}
@@ -133,13 +138,13 @@
           <div class="table-responsive mb-4">
             <table class="table table-sm table-hover align-middle mb-0">
               <thead><tr>
-                <th>{{ t('briefing_auction_date') }}</th>
-                <th>{{ t('year') }}</th>
-                <th>{{ t('fuel') }}</th>
-                <th>{{ t('km') }}</th>
-                <th>{{ t('briefing_hammer') }}</th>
-                <th>{{ t('briefing_hope') }}</th>
-                <th>{{ t('accident') }}</th>
+                <th class="text-nowrap">{{ t('briefing_auction_date') }}</th>
+                <th class="text-nowrap">{{ t('year') }}</th>
+                <th class="text-nowrap">{{ t('fuel') }}</th>
+                <th class="text-nowrap">{{ t('km') }}</th>
+                <th class="text-nowrap">{{ t('briefing_hammer') }}</th>
+                <th class="text-nowrap">{{ t('briefing_hope') }}</th>
+                <th class="text-nowrap">{{ t('accident') }}</th>
               </tr></thead>
               <tbody id="briefingDetailCurBody"></tbody>
             </table>
@@ -148,13 +153,13 @@
           <div class="table-responsive">
             <table class="table table-sm table-hover align-middle mb-0">
               <thead><tr>
-                <th>{{ t('briefing_auction_date') }}</th>
-                <th>{{ t('year') }}</th>
-                <th>{{ t('fuel') }}</th>
-                <th>{{ t('km') }}</th>
-                <th>{{ t('briefing_hammer') }}</th>
-                <th>{{ t('briefing_hope') }}</th>
-                <th>{{ t('accident') }}</th>
+                <th class="text-nowrap">{{ t('briefing_auction_date') }}</th>
+                <th class="text-nowrap">{{ t('year') }}</th>
+                <th class="text-nowrap">{{ t('fuel') }}</th>
+                <th class="text-nowrap">{{ t('km') }}</th>
+                <th class="text-nowrap">{{ t('briefing_hammer') }}</th>
+                <th class="text-nowrap">{{ t('briefing_hope') }}</th>
+                <th class="text-nowrap">{{ t('accident') }}</th>
               </tr></thead>
               <tbody id="briefingDetailPrevBody"></tbody>
             </table>
@@ -168,12 +173,17 @@
 <div class="glass-card p-3 mb-3">
   <h5 class="mb-3">{{ t('briefing_surge_alerts') }} ({{ data.surge_threshold }}%+)</h5>
   {% if data.surge_alerts %}
-  <div class="table-responsive">
-    <table class="table table-sm table-hover align-middle mb-0">
+  <div class="table-responsive briefing-table-wrap">
+    <table class="table table-sm table-hover align-middle mb-0 briefing-table">
       <thead><tr>
-        <th>{{ t('maker') }}</th><th>{{ t('model') }}</th>
-        <th>{{ t('mdetail') }}</th><th>{{ t('grade') }}</th><th>{{ t('gdetail') }}</th>
-        <th>{{ t('briefing_cur_count') }}</th><th>{{ t('briefing_prev_count') }}</th><th>{{ t('mom') }}</th>
+        <th class="text-nowrap">{{ t('maker') }}</th>
+        <th class="text-nowrap">{{ t('model') }}</th>
+        <th class="text-nowrap">{{ t('mdetail') }}</th>
+        <th class="text-nowrap">{{ t('grade') }}</th>
+        <th class="text-nowrap">{{ t('gdetail') }}</th>
+        <th class="text-nowrap">{{ t('briefing_cur_count') }}</th>
+        <th class="text-nowrap">{{ t('briefing_prev_count') }}</th>
+        <th class="text-nowrap">{{ t('mom') }}</th>
       </tr></thead>
       <tbody>
         {% for r in data.surge_alerts %}
@@ -202,13 +212,19 @@
 
 <div class="glass-card p-3">
   <h5 class="mb-3">{{ t('briefing_all_rows') }}</h5>
-  <div class="table-responsive data-scroll">
-    <table class="table table-sm align-middle mb-0">
+  <div class="table-responsive data-scroll briefing-table-wrap">
+    <table class="table table-sm align-middle mb-0 briefing-table">
       <thead><tr>
-        <th>{{ t('maker') }}</th><th>{{ t('model') }}</th>
-        <th>{{ t('mdetail') }}</th><th>{{ t('grade') }}</th><th>{{ t('gdetail') }}</th>
-        <th>{{ t('briefing_cur_price') }}</th><th>{{ t('briefing_prev_price') }}</th><th>{{ t('mom') }}</th>
-        <th>{{ t('briefing_cur_count') }}</th><th>{{ t('briefing_prev_count') }}</th>
+        <th class="text-nowrap">{{ t('maker') }}</th>
+        <th class="text-nowrap">{{ t('model') }}</th>
+        <th class="text-nowrap">{{ t('mdetail') }}</th>
+        <th class="text-nowrap">{{ t('grade') }}</th>
+        <th class="text-nowrap">{{ t('gdetail') }}</th>
+        <th class="text-nowrap">{{ t('briefing_cur_price') }}</th>
+        <th class="text-nowrap">{{ t('briefing_prev_price') }}</th>
+        <th class="text-nowrap">{{ t('mom') }}</th>
+        <th class="text-nowrap">{{ t('briefing_cur_count') }}</th>
+        <th class="text-nowrap">{{ t('briefing_prev_count') }}</th>
       </tr></thead>
       <tbody>
         {% for r in data.rows %}
@@ -230,7 +246,9 @@
   </div>
 </div>
 {% endif %}
+{% endblock %}
 
+{% block scripts %}
 {% if data.available %}
 <script>
 (function () {
@@ -254,7 +272,9 @@
 
   const modalEl = document.getElementById("briefingDetailModal");
   if (!modalEl || !window.bootstrap) return;
-  document.body.appendChild(modalEl);
+  if (modalEl.parentElement !== document.body) {
+    document.body.appendChild(modalEl);
+  }
   const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
 
   function rowsHtml(items) {
@@ -317,7 +337,11 @@
   }
 
   document.querySelectorAll(".briefing-detail-btn").forEach((btn) => {
-    btn.addEventListener("click", () => openDetail(btn));
+    btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      openDetail(btn);
+    });
   });
 })();
 </script>
