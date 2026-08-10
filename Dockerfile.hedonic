@@ -1,4 +1,7 @@
-# Production image for wecarwpm (:8090) — Python 3.12 multi-stage (agent.md)
+# agent.md-aligned multi-stage image for hedonic stack only (port 8091).
+# Bind-mounted SQLite volume needs write access → process runs as root
+# (same operational pattern as production compose). Image still uses Python 3.12.
+
 FROM python:3.12-slim-bookworm AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

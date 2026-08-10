@@ -1,37 +1,48 @@
-# wecar WPM — independent stack (no shared network/DB with wecar PM)
-name: wecarwpm
+# Hedonic-enhanced stack — isolated from wecarwpm (:8090)
+# Usage:
+#   mkdir -p instance-hedonic
+#   cp -n instance/wecarcar1_auto.db instance-hedonic/ 2>/dev/null || true
+#   docker compose -f docker-compose.hedonic.yml -p wecarwpm_hedonic up -d --build
+name: wecarwpm_hedonic
 
 services:
   web:
-    build: .
-    container_name: wecarwpm-web
+    build:
+      context: .
+      dockerfile: Dockerfile.hedonic
+    image: wecarwpm-hedonic-web:latest
+    container_name: wecarwpm-hedonic-web
     ports:
-      - "8090:5000"
+      - "8091:5000"
     env_file:
       - .env
     environment:
       DATABASE_URL: sqlite:///instance/wecarcar1_auto.db
       ENABLE_SCHEDULER: "0"
       SYNC_BATCH_SIZE: "500"
-      # Future PM integration is inbound only (wholesale API). Leave unset until linked.
       INTEGRATION_MODE: "standalone"
       HEDONIC_MODEL_PATH: ./instance/hedonic_model.pkl
       MODEL_PATH: ./instance/car_price_model.pkl
+      APP_NAME: 도매시세분석(Hedonic)
+      BRAND_MARK: WPM-H
     volumes:
-      - ./instance:/app/instance
+      - ./instance-hedonic:/app/instance
     networks:
-      - wecarwpm_net
+      - wecarwpm_hedonic_net
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=5)"]
       interval: 15s
       timeout: 10s
       retries: 5
-      start_period: 40s
+      start_period: 50s
 
   scheduler:
-    build: .
-    container_name: wecarwpm-scheduler
+    build:
+      context: .
+      dockerfile: Dockerfile.hedonic
+    image: wecarwpm-hedonic-scheduler:latest
+    container_name: wecarwpm-hedonic-scheduler
     depends_on:
       web:
         condition: service_healthy
@@ -42,14 +53,15 @@ services:
       ENABLE_SCHEDULER: "0"
       SYNC_BATCH_SIZE: "500"
       INTEGRATION_MODE: "standalone"
+      HEDONIC_MODEL_PATH: ./instance/hedonic_model.pkl
     command: ["python", "-m", "app.scheduler_main"]
     volumes:
-      - ./instance:/app/instance
+      - ./instance-hedonic:/app/instance
     networks:
-      - wecarwpm_net
+      - wecarwpm_hedonic_net
     restart: unless-stopped
 
 networks:
-  wecarwpm_net:
-    name: wecarwpm_net
+  wecarwpm_hedonic_net:
+    name: wecarwpm_hedonic_net
     driver: bridge

@@ -26,6 +26,7 @@ from app.services.llm_hub import (
     set_active, test_provider,
 )
 from app.services.price_model import PriceModel
+from app.services.hedonic_model import HedonicModel
 from app.services.sync_engine import sync_listings
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -112,14 +113,17 @@ def upload():
     db.session.commit()
 
     result["train"] = PriceModel().train()
+    result["hedonic"] = HedonicModel().train()
     rag_status = rag_store.embed_records(
         AuctionRecord.query.filter_by(week_no=week_no).all()
     )
     result["rag"] = rag_status.get("status")
     train = result.get("train") or {}
+    hedonic = result.get("hedonic") or {}
     message = (
         f"업로드 완료: {result['rows_ok']}행 · 시세 {result['summaries']}건 · "
-        f"학습 {'성공' if train.get('trained') else 'SKIP'}"
+        f"학습 {'성공' if train.get('trained') else 'SKIP'} · "
+        f"헤도닉 {'성공' if hedonic.get('trained') else 'SKIP'}"
     )
     if result.get("rag") and result["rag"] != "OK":
         message += f" · RAG {result['rag']}"
@@ -169,6 +173,7 @@ def sync():
     result = sync_listings(with_images=request.form.get("images") == "1")
     if result.get("status") == "SUCCESS":
         result["train"] = PriceModel().train()
+        result["hedonic"] = HedonicModel().train()
     return jsonify(result)
 
 
@@ -176,7 +181,9 @@ def sync():
 @login_required
 @admin_required
 def retrain():
-    return jsonify(PriceModel().train())
+    rf = PriceModel().train()
+    hedonic = HedonicModel().train()
+    return jsonify({"ok": True, "train": rf, "hedonic": hedonic})
 
 
 @admin_bp.route("/llm", methods=["POST"])

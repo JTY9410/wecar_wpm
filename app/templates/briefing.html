@@ -57,7 +57,9 @@
 </div>
 
 <div class="glass-card p-3 mb-3">
-  <h5 class="mb-3">{{ t('briefing_price_alerts') }} ({{ data.price_threshold }}%+ · {{ t('briefing_min_samples') }} {{ data.price_alert_min_samples }}+)</h5>
+  <h5 class="mb-3">{{ t('briefing_price_alerts') }} ({{ data.price_threshold }}%+ · {{ t('briefing_min_samples') }} {{ data.price_alert_min_samples }}+)
+    {% if data.hedonic_available %}<span class="badge text-bg-info ms-1">Hedonic</span>{% endif %}
+  </h5>
   {% if data.price_alerts %}
   <div class="table-responsive">
     <table class="table table-sm table-hover align-middle mb-0">
@@ -65,6 +67,7 @@
         <th>{{ t('maker') }}</th><th>{{ t('model') }}</th>
         <th>{{ t('mdetail') }}</th><th>{{ t('grade') }}</th><th>{{ t('gdetail') }}</th>
         <th>{{ t('briefing_cur_price') }}</th><th>{{ t('briefing_prev_price') }}</th><th>{{ t('mom') }}</th>
+        <th>Hedonic</th>
         <th>{{ t('briefing_detail_col') }}</th>
       </tr></thead>
       <tbody>
@@ -80,6 +83,12 @@
           <td>
             {% if r.price_pct is not none %}
             <span class="badge {{ 'text-bg-danger' if r.price_pct > 0 else 'text-bg-success' }}">{{ '%+.1f'|format(r.price_pct) }}%</span>
+            {% else %}-{% endif %}
+          </td>
+          <td>
+            {% if r.hedonic_residual_pct is not none %}
+            <span class="badge {{ 'text-bg-warning' if r.hedonic_flag else 'text-bg-secondary' }}"
+                  title="헤도닉 잔차(실제−예측)">{{ '%+.1f'|format(r.hedonic_residual_pct) }}%</span>
             {% else %}-{% endif %}
           </td>
           <td class="text-nowrap">

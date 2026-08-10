@@ -8,6 +8,7 @@ from app.models import AuctionRecord
 PRICE_THRESHOLD_PCT = 5.0
 PRICE_ALERT_MIN_SAMPLES = 2  # 금주·전주 각각 최소 표본 (1건 노이즈 제외)
 SURGE_THRESHOLD_PCT = 30.0
+HEDONIC_RESIDUAL_THRESHOLD_PCT = 15.0
 DETAIL_LIMIT = 200
 
 # 세부등급 비교 키 (모델명만으로 묶지 않음)
@@ -251,13 +252,20 @@ def build_briefing(week_no=None):
         round(((total_cur - total_prev) / total_prev) * 100, 1) if total_prev else None
     )
 
+    price_alerts = [r for r in rows if r["price_flag"]]
+    for r in price_alerts:
+        r.setdefault("hedonic_residual_pct", None)
+        r.setdefault("hedonic_flag", False)
+        r.setdefault("hedonic_n", 0)
+    hedonic_on = _enrich_price_alerts_hedonic(price_alerts, current)
+
     return {
         "available": True,
         "current_period": current,
         "previous_period": previous,
         "periods": weeks,
         "rows": rows,
-        "price_alerts": [r for r in rows if r["price_flag"]],
+        "price_alerts": price_alerts,
         "surge_alerts": [r for r in rows if r["surge_flag"]],
         "total_cur": total_cur,
         "total_prev": total_prev,
@@ -265,7 +273,73 @@ def build_briefing(week_no=None):
         "price_threshold": PRICE_THRESHOLD_PCT,
         "price_alert_min_samples": PRICE_ALERT_MIN_SAMPLES,
         "surge_threshold": SURGE_THRESHOLD_PCT,
+        "hedonic_residual_threshold": HEDONIC_RESIDUAL_THRESHOLD_PCT,
+        "hedonic_available": hedonic_on,
         "price_alert_on": True,
         "surge_alert_on": True,
         "compare_basis": "gdetail",
     }
+
+
+def _enrich_price_alerts_hedonic(alerts, week_no):
+    """가격 특이사항 행에 헤도닉 잔차(%)를 붙여 고도화한다."""
+    if not alerts:
+        return False
+    try:
+        from app.services.hedonic_model import HedonicModel
+        hm = HedonicModel()
+        if not hm.load():
+            return False
+    except Exception:
+        return False
+
+    try:
+        for r in alerts:
+            q = (
+                AuctionRecord.query.filter(
+                    AuctionRecord.week_no == week_no,
+                    AuctionRecord.hammer_price.isnot(None),
+                    AuctionRecord.hammer_price > 0,
+                )
+            )
+            q = _filter_trim(
+                q,
+                maker=r.get("maker_name"),
+                model_name=r.get("model_name"),
+                mdetail_name=r.get("mdetail_name"),
+                grade_name=r.get("grade_name"),
+                gdetail_name=r.get("gdetail_name"),
+            ).limit(40)
+            residuals = []
+            for rec in q.all():
+                detail = hm.predict_detail(
+                    maker=rec.maker,
+                    car_year=rec.car_year,
+                    car_km=rec.car_km,
+                    fuel=rec.fuel,
+                    imported=rec.imported,
+                    is_accident_free=rec.is_accident_free,
+                    hammer_price=rec.hammer_price,
+                )
+                if detail and detail.get("residual_pct") is not None:
+                    residuals.append(detail["residual_pct"])
+            if residuals:
+                avg = sum(residuals) / len(residuals)
+                r["hedonic_residual_pct"] = round(avg, 1)
+                r["hedonic_flag"] = abs(avg) >= HEDONIC_RESIDUAL_THRESHOLD_PCT
+                r["hedonic_n"] = len(residuals)
+            else:
+                r["hedonic_residual_pct"] = None
+                r["hedonic_flag"] = False
+                r["hedonic_n"] = 0
+
+        alerts.sort(
+            key=lambda x: (
+                not x.get("hedonic_flag"),
+                -(abs(x.get("hedonic_residual_pct") or 0)),
+                -(abs(x.get("price_pct") or 0)),
+            )
+        )
+        return True
+    except Exception:
+        return False

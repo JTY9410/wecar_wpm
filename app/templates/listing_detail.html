@@ -1,3 +1,10 @@
+<!--
+  [UI Flow]
+  1. Auth / listing detail
+  2. Data: GET /api/predict · GET /api/predict/hedonic · POST /api/report/<car_no>
+  3. States: loading | empty | error | success
+  4. Actions → predict / hedonic contributions / qualitative report
+-->
 {% extends "base.html" %}
 {% block content %}
 <div class="card glass-card">
@@ -18,9 +25,11 @@
         </ul>
         <div class="mt-3 d-flex flex-column flex-sm-row gap-2">
           <button id="predict" class="btn btn-outline-primary">AI 정량 예측가</button>
+          <button id="predict-hedonic" class="btn btn-outline-success">헤도닉 분석</button>
           <button id="report" class="btn btn-primary">AI 정성 분석 리포트 발행</button>
         </div>
         <div id="predict-out" class="mt-2 fw-bold"></div>
+        <div id="hedonic-out" class="mt-2 small"></div>
       </div>
     </div>
     <hr>
@@ -32,11 +41,37 @@
 {% block scripts %}
 <script>
 const carNo = {{ listing.car_no|tojson }};
+const baseQ = {
+  maker: {{ (listing.maker_no or listing.maker or '')|tojson }},
+  car_year: {{ (listing.car_year or '')|tojson }},
+  car_km: {{ (listing.car_km or '')|tojson }},
+  imported: {{ (listing.imported or '')|tojson }},
+  fuel: {{ (listing.car_fuel or listing.fuel or '')|tojson }},
+};
 document.getElementById('predict').onclick = async () => {
-  const q = new URLSearchParams({maker:{{ (listing.maker_no or '')|tojson }}, car_year:{{ (listing.car_year or '')|tojson }}, car_km:{{ (listing.car_km or '')|tojson }}, imported:{{ (listing.imported or '')|tojson }}});
+  const q = new URLSearchParams(baseQ);
   const r = await fetch('/api/predict?' + q); const d = await r.json();
   document.getElementById('predict-out').textContent = d.ok ? `예상 낙찰가: ${d.predicted_price} 만원` : d.error;
   if (!d.ok) toast(d.error, 'warning');
+};
+document.getElementById('predict-hedonic').onclick = async () => {
+  const q = new URLSearchParams({...baseQ, accident_free: '1'});
+  const r = await fetch('/api/predict/hedonic?' + q); const d = await r.json();
+  const box = document.getElementById('hedonic-out');
+  if (!d.ok) {
+    box.textContent = d.error || '헤도닉 모델 없음';
+    toast(d.error || '헤도닉 모델 없음', 'warning');
+    return;
+  }
+  const lines = (d.contributions || []).slice(0, 8).map(c =>
+    `<li>${c.label}: <strong>${c.contribution > 0 ? '+' : ''}${c.contribution}</strong> 만원</li>`
+  ).join('');
+  box.innerHTML = `
+    <div class="fw-bold mb-1">헤도닉 예측가: ${d.predicted_price} 만원
+      ${d.residual_pct != null ? ` · 잔차 ${d.residual_pct > 0 ? '+' : ''}${d.residual_pct}%` : ''}
+    </div>
+    <ul class="mb-0 ps-3">${lines || '<li>기여도 없음</li>'}</ul>`;
+  toast('헤도닉 분석 완료', 'success');
 };
 document.getElementById('report').onclick = async () => {
   toast('리포트 생성 중…', 'secondary');

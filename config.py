@@ -40,6 +40,7 @@ class Config:
     EXCEL_UPLOAD_PATH = _abs(os.getenv("EXCEL_UPLOAD_PATH", "./instance/storage/excel_uploads"))
     CHROMA_PATH = _abs(os.getenv("CHROMA_PATH", "./instance/storage/chroma"))
     MODEL_PATH = _abs(os.getenv("MODEL_PATH", "./instance/car_price_model.pkl"))
+    HEDONIC_MODEL_PATH = _abs(os.getenv("HEDONIC_MODEL_PATH", "./instance/hedonic_model.pkl"))
 
     INIT_ADMIN_USERNAME = os.getenv("INIT_ADMIN_USERNAME", "wecar")
     INIT_ADMIN_PASSWORD = os.getenv("INIT_ADMIN_PASSWORD", "1004wecar")
@@ -70,3 +71,4 @@ class Config:
         for p in (cls.IMAGE_STORAGE_PATH, cls.EXCEL_UPLOAD_PATH, cls.CHROMA_PATH):
             Path(p).mkdir(parents=True, exist_ok=True)
         Path(cls.MODEL_PATH).parent.mkdir(parents=True, exist_ok=True)
+        Path(cls.HEDONIC_MODEL_PATH).parent.mkdir(parents=True, exist_ok=True)

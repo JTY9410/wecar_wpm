@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 instance/
+instance-hedonic/
 .env
 *.pkl
 .DS_Store
