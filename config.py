@@ -65,6 +65,7 @@ class Config:
     EXTERNAL_API_KEY = os.getenv("EXTERNAL_API_KEY", "")
     # Runtime mode: standalone (default) | linked (when a PM consumer is wired)
     INTEGRATION_MODE = os.getenv("INTEGRATION_MODE", "standalone")
+    TRUST_PROXY = os.getenv("TRUST_PROXY", "0") == "1"
 
     @classmethod
     def ensure_dirs(cls):

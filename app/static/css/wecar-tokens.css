@@ -1,4 +1,16 @@
 :root {
+  color-scheme: light dark;
+  /* agent.md oklch aliases (keep brand hex tokens below for compatibility) */
+  --bg: oklch(0.97 0.01 240);
+  --surface: color-mix(in oklch, white 72%, transparent);
+  --text: oklch(0.25 0.02 250);
+  --muted: oklch(0.48 0.02 250);
+  --accent: oklch(0.55 0.14 25);
+  --border: color-mix(in oklch, var(--text) 10%, transparent);
+  --radius: 12px;
+  --blur: 16px;
+  --font: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+
   --wc-primary: #C0392B;
   --wc-primary-hover: #A93226;
   --wc-primary-soft: #FDECEA;
@@ -39,6 +51,12 @@
 }
 
 [data-theme="dark"] {
+  --bg: oklch(0.22 0.02 250);
+  --surface: color-mix(in oklch, oklch(0.30 0.02 250) 80%, transparent);
+  --text: oklch(0.95 0.01 240);
+  --muted: oklch(0.72 0.02 240);
+  --accent: oklch(0.72 0.12 25);
+
   --wc-primary: #E57373;
   --wc-primary-hover: #EF9A9A;
   --wc-primary-soft: rgba(229, 115, 115, .16);

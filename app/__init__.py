@@ -2,9 +2,10 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, session, url_for
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from config import Config
-from app.extensions import db, login_manager, migrate
+from app.extensions import csrf, db, login_manager, migrate
 
 
 def _safe_local_redirect(target: str, fallback: str) -> str:
@@ -22,10 +23,14 @@ def create_app(config_class=Config):
     app.config.from_object(config_class)
     config_class.ensure_dirs()
     app.url_map.strict_slashes = False
+    # agent.md: HTTPS 가정 프록시 헤더
+    if getattr(config_class, "TRUST_PROXY", False) or app.config.get("TRUST_PROXY"):
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
+    csrf.init_app(app)
 
     from app import models  # noqa: F401  (register models)
     from app.services.i18n_translate import load_pack
@@ -80,6 +85,10 @@ def create_app(config_class=Config):
     app.register_blueprint(wholesale_bp)
     app.register_blueprint(briefing_bp)
 
+    # JSON/fetch 관리·API 엔드포인트는 세션 로그인 + RBAC로 보호 (CSRF는 HTML 폼에 적용)
+    for bp in (api_bp, admin_bp, codes_bp, wholesale_bp, market_bp, listings_bp, briefing_bp):
+        csrf.exempt(bp)
+
     @app.route("/set-lang/<lang>")
     def set_lang(lang):
         if lang in app.config.get("SUPPORTED_LANGS", ["ko", "en", "ja"]):
@@ -87,16 +96,18 @@ def create_app(config_class=Config):
         nxt = request.args.get("next") or request.referrer or url_for("market.index")
         return redirect(_safe_local_redirect(nxt, url_for("market.index")))
 
+    def _health_payload():
+        return {
+            "status": "ok",
+            "service": app.config.get("SERVICE_ID", "wecarcar1"),
+            "app": app.config["APP_NAME"],
+            "integration_mode": app.config.get("INTEGRATION_MODE", "standalone"),
+        }
+
     @app.route("/health")
+    @app.route("/healthz")
     def health():
-        return jsonify(
-            {
-                "status": "ok",
-                "service": app.config.get("SERVICE_ID", "wecarcar1"),
-                "app": app.config["APP_NAME"],
-                "integration_mode": app.config.get("INTEGRATION_MODE", "standalone"),
-            }
-        )
+        return jsonify(_health_payload())
 
     @app.route("/service-worker.js")
     def service_worker():

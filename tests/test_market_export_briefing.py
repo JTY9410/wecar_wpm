@@ -99,7 +99,10 @@ def test_export_grid_excel_bytes(app, db):
     assert len(data) > 1000
 
 
-def test_export_grid_requires_login(client):
+def test_healthz(client):
+    resp = client.get("/healthz")
+    assert resp.status_code == 200
+    assert resp.get_json()["status"] == "ok"
     resp = client.get("/api/export/grid?maker=현대")
     assert resp.status_code in (401, 302)
 
