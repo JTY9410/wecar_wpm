@@ -53,6 +53,17 @@ docker compose up -d --build
 
 매핑 상태: `candidate` · `confirmed` · `rejected` (car2 레코드 cascade 삭제는 하지 않음).
 
+## 분석로직 (관리자)
+
+사이드바 **분석로직** (`/admin/analysis-logic`)에서 도매 시세(낙찰) 산정·분석 모듈을 관리합니다.
+
+| 탭 | 내용 |
+|----|------|
+| **파이프라인** | 엑셀→집계→RF/헤도닉→브리핑 단계 명세와 연결 `code` |
+| **로직 관리** | 내장/커스텀 항목 활성·파라미터 수정·추가·삭제(내장은 비활성만) |
+
+런타임: km구간·브리핑 임계값은 DB params 즉시 반영. 집계/RF/헤도닉은 on/off. 레지스트리 미연결 커스텀은 저장만 되며 실행되지 않습니다.
+
 ## Wholesale API 인증 (다중 키)
 
 car2 등 외부 소비자용 REST (`/api/v1/wholesale/*`).
