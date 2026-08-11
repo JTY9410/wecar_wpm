@@ -156,6 +156,7 @@
   {% if current_user.is_admin %}
   <a href="{{ url_for('admin.dashboard') }}" class="mobile-nav-item {{ 'active' if ep == 'admin.dashboard' }}">{{ t('admin') }}</a>
   <a href="{{ url_for('admin.developer') }}" class="mobile-nav-item {{ 'active' if ep == 'admin.developer' }}">{{ t('nav_developer') }}</a>
+  <a href="{{ url_for('admin.analysis_logic') }}" class="mobile-nav-item {{ 'active' if ep and ep.startswith('admin.analysis_logic') }}">{{ t('nav_analysis_logic') }}</a>
   <a href="{{ url_for('admin.users') }}" class="mobile-nav-item {{ 'active' if ep == 'admin.users' }}">{{ t('users') }}</a>
   {% endif %}
   <a href="{{ url_for('auth.logout') }}" class="mobile-nav-item">{{ t('logout') }}</a>
