@@ -125,3 +125,149 @@ def test_get_params_merges_db_over_defaults(db, app):
         params = get_params("briefing.price_alert")
         assert params["threshold_pct"] == 10.0
         assert params["min_samples"] == 2
+
+
+def _seed_briefing_weeks(db):
+    from app.models import AuctionRecord
+
+    db.session.add_all([
+        AuctionRecord(
+            week_no="2026-W30", maker="현대", model_name="쏘나타",
+            mdetail_name="쏘나타 DN8", grade_name="가솔린 2.0", gdetail_name="스마트",
+            hammer_price=1100, car_year=2021, km_bin="3~4.5만", fuel="가솔린",
+        ),
+        AuctionRecord(
+            week_no="2026-W30", maker="현대", model_name="쏘나타",
+            mdetail_name="쏘나타 DN8", grade_name="가솔린 2.0", gdetail_name="스마트",
+            hammer_price=1100, car_year=2021, km_bin="3~4.5만", fuel="가솔린",
+        ),
+        AuctionRecord(
+            week_no="2026-W29", maker="현대", model_name="쏘나타",
+            mdetail_name="쏘나타 DN8", grade_name="가솔린 2.0", gdetail_name="스마트",
+            hammer_price=1000, car_year=2021, km_bin="3~4.5만", fuel="가솔린",
+        ),
+        AuctionRecord(
+            week_no="2026-W29", maker="현대", model_name="쏘나타",
+            mdetail_name="쏘나타 DN8", grade_name="가솔린 2.0", gdetail_name="스마트",
+            hammer_price=1000, car_year=2021, km_bin="3~4.5만", fuel="가솔린",
+        ),
+    ])
+    db.session.commit()
+
+
+def test_price_alert_threshold_from_db(db, app):
+    from app.models import AnalysisLogic
+    from app.services.analysis_logic import seed_builtin_logics
+    from app.services.weekly_briefing import build_briefing
+
+    with app.app_context():
+        seed_builtin_logics()
+        row = db.session.execute(
+            db.select(AnalysisLogic).where(AnalysisLogic.code == "briefing.price_alert")
+        ).scalar_one()
+        row.params = {"threshold_pct": 99.0, "min_samples": 2}
+        db.session.commit()
+        _seed_briefing_weeks(db)
+
+        data = build_briefing()
+        smart = next(r for r in data["rows"] if r["gdetail_name"] == "스마트")
+        assert smart["price_pct"] == 10.0
+        assert smart["price_flag"] is False
+        assert data["price_alerts"] == []
+
+
+def test_aggregate_off_skips_rebuild(db, app):
+    from app.models import AnalysisLogic, AuctionRecord, MarketSummary
+    from app.services.analysis_logic import seed_builtin_logics
+    from app.services.excel_pipeline import rebuild_market_summary
+
+    with app.app_context():
+        seed_builtin_logics()
+        db.session.add(AuctionRecord(
+            week_no="2026-W30", maker="현대", model_name="아반떼",
+            hammer_price=1500, car_year=2020, km_bin="0만~1.5만km",
+        ))
+        db.session.add(MarketSummary(
+            maker="현대", model_name="아반떼", car_year=2020,
+            km_bin="0만~1.5만km", hammer_avg=1500, sample_count=1,
+            week_no="2026-W30",
+        ))
+        db.session.commit()
+        before = db.session.scalar(
+            db.select(db.func.count()).select_from(MarketSummary)
+        )
+
+        row = db.session.execute(
+            db.select(AnalysisLogic).where(AnalysisLogic.code == "aggregate.market_summary")
+        ).scalar_one()
+        row.is_active = False
+        db.session.commit()
+
+        result = rebuild_market_summary("2026-W30")
+        after = db.session.scalar(
+            db.select(db.func.count()).select_from(MarketSummary)
+        )
+        assert result == 0
+        assert after == before == 1
+
+
+def test_mileage_bin_params_from_db(db, app):
+    from app.models import AnalysisLogic
+    from app.services.analysis_logic import seed_builtin_logics
+    from app.services.mileage import calculate_mileage_bin
+
+    with app.app_context():
+        seed_builtin_logics()
+        row = db.session.execute(
+            db.select(AnalysisLogic).where(AnalysisLogic.code == "mileage.km_bin")
+        ).scalar_one()
+        row.params = {"step": 10000, "max": 100000}
+        db.session.commit()
+
+        assert calculate_mileage_bin(5000) == "0만~1만km"
+        assert calculate_mileage_bin(15000) == "1만~2만km"
+        assert calculate_mileage_bin(100000) == "10만km 이상"
+        assert calculate_mileage_bin(5000, step=15000) == "0만~1.5만km"
+
+
+def test_price_model_inactive_skips_train(db, app, tmp_path):
+    from app.models import AnalysisLogic, AuctionRecord
+    from app.services.analysis_logic import seed_builtin_logics
+    from app.services.price_model import PriceModel
+
+    with app.app_context():
+        seed_builtin_logics()
+        for i in range(10):
+            db.session.add(AuctionRecord(
+                week_no="2026-W29", maker="현대", car_year=2018,
+                car_km=50000, imported="수출", hammer_price=300 + i * 10,
+            ))
+        db.session.commit()
+        row = db.session.execute(
+            db.select(AnalysisLogic).where(AnalysisLogic.code == "predict.random_forest")
+        ).scalar_one()
+        row.is_active = False
+        db.session.commit()
+
+        model = PriceModel(path=str(tmp_path / "m.pkl"))
+        res = model.train()
+        assert res["trained"] is False
+        assert res["reason"] == "inactive"
+        assert model.predict("현대", 2018, 50000, "수출") is None
+
+
+def test_hedonic_inactive_skips_predict(db, app, tmp_path):
+    from app.models import AnalysisLogic
+    from app.services.analysis_logic import seed_builtin_logics
+    from app.services.hedonic_model import HedonicModel
+
+    with app.app_context():
+        seed_builtin_logics()
+        row = db.session.execute(
+            db.select(AnalysisLogic).where(AnalysisLogic.code == "predict.hedonic")
+        ).scalar_one()
+        row.is_active = False
+        db.session.commit()
+
+        model = HedonicModel(path=str(tmp_path / "h.pkl"))
+        assert model.predict_detail(maker="현대", car_year=2020, car_km=30000) is None

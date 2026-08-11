@@ -4,6 +4,7 @@ from sqlalchemy import func, or_
 
 from app.extensions import db
 from app.models import AuctionRecord
+from app.services.analysis_logic import get_params, is_active
 
 PRICE_THRESHOLD_PCT = 5.0
 PRICE_ALERT_MIN_SAMPLES = 2  # 금주·전주 각각 최소 표본 (1건 노이즈 제외)
@@ -188,6 +189,26 @@ def build_briefing(week_no=None):
     cur_map = _aggregate_week(current)
     prev_map = _aggregate_week(previous) if previous else {}
 
+    price_params = get_params(
+        "briefing.price_alert",
+        {"threshold_pct": PRICE_THRESHOLD_PCT, "min_samples": PRICE_ALERT_MIN_SAMPLES},
+    )
+    surge_params = get_params(
+        "briefing.surge_alert",
+        {"threshold_pct": SURGE_THRESHOLD_PCT},
+    )
+    hedonic_params = get_params(
+        "briefing.hedonic_residual",
+        {"threshold_pct": HEDONIC_RESIDUAL_THRESHOLD_PCT},
+    )
+    price_threshold = price_params["threshold_pct"]
+    price_min_samples = price_params["min_samples"]
+    surge_threshold = surge_params["threshold_pct"]
+    hedonic_threshold = hedonic_params["threshold_pct"]
+    price_alert_on = is_active("briefing.price_alert")
+    surge_alert_on = is_active("briefing.surge_alert")
+    hedonic_residual_on = is_active("briefing.hedonic_residual")
+
     rows = []
     for key in set(cur_map) | set(prev_map):
         cur = cur_map.get(key)
@@ -202,22 +223,23 @@ def build_briefing(week_no=None):
         price_flag = False
         if cur_price is not None and prev_price:
             price_pct = round(((cur_price - prev_price) / prev_price) * 100, 1)
-            # 가격 특이사항: 전주대비 ±5% 이상이고 양쪽 표본이 충분할 때만
-            price_flag = (
-                abs(price_pct) >= PRICE_THRESHOLD_PCT
-                and cur_count >= PRICE_ALERT_MIN_SAMPLES
-                and prev_count >= PRICE_ALERT_MIN_SAMPLES
-            )
+            if price_alert_on:
+                price_flag = (
+                    abs(price_pct) >= price_threshold
+                    and cur_count >= price_min_samples
+                    and prev_count >= price_min_samples
+                )
 
         count_pct = None
         surge_flag = False
         new_entry = False
         if prev_count == 0 and cur_count > 0:
             new_entry = True
-            surge_flag = True
-        elif prev_count > 0:
+            if surge_alert_on:
+                surge_flag = True
+        elif prev_count > 0 and surge_alert_on:
             count_pct = round(((cur_count - prev_count) / prev_count) * 100, 1)
-            surge_flag = count_pct >= SURGE_THRESHOLD_PCT
+            surge_flag = count_pct >= surge_threshold
 
         rows.append({
             "maker_name": meta["maker_name"],
@@ -255,7 +277,11 @@ def build_briefing(week_no=None):
         r.setdefault("hedonic_residual_pct", None)
         r.setdefault("hedonic_flag", False)
         r.setdefault("hedonic_n", 0)
-    hedonic_on = _enrich_price_alerts_hedonic(price_alerts, current)
+    hedonic_on = False
+    if hedonic_residual_on and is_active("predict.hedonic"):
+        hedonic_on = _enrich_price_alerts_hedonic(
+            price_alerts, current, hedonic_threshold
+        )
 
     return {
         "available": True,
@@ -268,18 +294,18 @@ def build_briefing(week_no=None):
         "total_cur": total_cur,
         "total_prev": total_prev,
         "total_pct": total_pct,
-        "price_threshold": PRICE_THRESHOLD_PCT,
-        "price_alert_min_samples": PRICE_ALERT_MIN_SAMPLES,
-        "surge_threshold": SURGE_THRESHOLD_PCT,
-        "hedonic_residual_threshold": HEDONIC_RESIDUAL_THRESHOLD_PCT,
+        "price_threshold": price_threshold,
+        "price_alert_min_samples": price_min_samples,
+        "surge_threshold": surge_threshold,
+        "hedonic_residual_threshold": hedonic_threshold,
         "hedonic_available": hedonic_on,
-        "price_alert_on": True,
-        "surge_alert_on": True,
+        "price_alert_on": price_alert_on,
+        "surge_alert_on": surge_alert_on,
         "compare_basis": "gdetail",
     }
 
 
-def _enrich_price_alerts_hedonic(alerts, week_no):
+def _enrich_price_alerts_hedonic(alerts, week_no, threshold_pct):
     """가격 특이사항 행에 헤도닉 잔차(%)를 붙여 고도화한다."""
     if not alerts:
         return False
@@ -322,7 +348,7 @@ def _enrich_price_alerts_hedonic(alerts, week_no):
             if residuals:
                 avg = sum(residuals) / len(residuals)
                 r["hedonic_residual_pct"] = round(avg, 1)
-                r["hedonic_flag"] = abs(avg) >= HEDONIC_RESIDUAL_THRESHOLD_PCT
+                r["hedonic_flag"] = abs(avg) >= threshold_pct
                 r["hedonic_n"] = len(residuals)
             else:
                 r["hedonic_residual_pct"] = None

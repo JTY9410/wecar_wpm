@@ -4,6 +4,7 @@ Sheet `경매전체데이터` → AuctionRecord (raw lake) → MarketSummary (gr
 Sheet `시세표_테이블` (header row 5) → VehiclePriceTable (car-code reference).
 """
 import json
+import logging
 import re
 
 import numpy as np
@@ -16,9 +17,11 @@ from app.services.awd_utils import normalize_awd
 from app.services.car_code import build_car_code, extract_grade_gdetail
 from app.services.fuel_utils import normalize_fuel
 from app.services.hierarchy import ensure_hierarchy
+from app.services.analysis_logic import is_active
 from app.services.mileage import calculate_mileage_bin
 
 RAW_SHEET = "경매전체데이터"
+logger = logging.getLogger(__name__)
 PRICE_SHEET = "시세표_테이블"
 
 # 실데이터 컬럼명 기준. PRD의 제조사/모델명 별칭 허용.
@@ -209,6 +212,9 @@ def load_price_table(xls):
 
 def rebuild_market_summary(week_no):
     """Aggregate AuctionRecord into MarketSummary — 낙찰가 기준 · 전주대비(%)."""
+    if not is_active("aggregate.market_summary"):
+        logger.info("rebuild_market_summary skipped: aggregate.market_summary inactive")
+        return 0
     db.session.execute(db.delete(MarketSummary))
     records = db.session.execute(
         db.select(AuctionRecord).where(

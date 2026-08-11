@@ -13,6 +13,7 @@ import numpy as np
 
 from config import Config
 from app.models import AuctionRecord
+from app.services.analysis_logic import is_active
 
 NUMERIC = ("car_year", "car_km", "log_km", "age_proxy")
 CATEGORICAL = ("maker", "fuel", "imported", "is_accident_free")
@@ -77,6 +78,8 @@ class HedonicModel:
         return names
 
     def train(self):
+        if not is_active("predict.hedonic"):
+            return {"trained": False, "reason": "inactive"}
         from app.extensions import db
         recs = db.session.execute(db.select(AuctionRecord).where(
             AuctionRecord.hammer_price.isnot(None),
@@ -150,6 +153,8 @@ class HedonicModel:
         return pd.DataFrame([row]), row
 
     def predict_detail(self, **attrs):
+        if not is_active("predict.hedonic"):
+            return None
         if self.pipeline is None and not self.load():
             return None
         df, row = self._frame(attrs)

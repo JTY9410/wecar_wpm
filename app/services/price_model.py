@@ -6,6 +6,7 @@ import numpy as np
 
 from config import Config
 from app.models import AuctionRecord
+from app.services.analysis_logic import is_active
 
 FEATURES = ["maker", "car_year", "car_km", "imported"]
 
@@ -34,6 +35,8 @@ class PriceModel:
         return df[FEATURES].to_numpy()
 
     def train(self):
+        if not is_active("predict.random_forest"):
+            return {"trained": False, "reason": "inactive"}
         from sklearn.ensemble import RandomForestRegressor
         from app.extensions import db
         recs = db.session.execute(db.select(AuctionRecord).where(AuctionRecord.hammer_price.isnot(None))).scalars().all()
@@ -59,6 +62,8 @@ class PriceModel:
         return True
 
     def predict(self, maker, car_year, car_km, imported):
+        if not is_active("predict.random_forest"):
+            return None
         if self.model is None and not self.load():
             return None
         X = self._encode([{"maker": maker, "car_year": car_year,

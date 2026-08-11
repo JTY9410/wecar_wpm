@@ -2,14 +2,15 @@ from app.services.accident import is_accident_free
 from app.services.mileage import calculate_mileage_bin
 
 
-def test_mileage_bins():
-    assert calculate_mileage_bin(0) == "0만~1.5만km"
-    assert calculate_mileage_bin(14999) == "0만~1.5만km"
-    assert calculate_mileage_bin(15000) == "1.5만~3만km"
-    assert calculate_mileage_bin(200000) == "20만km 이상"
-    assert calculate_mileage_bin(250000) == "20만km 이상"
-    assert calculate_mileage_bin("미상") == "미상"
-    assert calculate_mileage_bin(None) == "미상"
+def test_mileage_bins(app):
+    with app.app_context():
+        assert calculate_mileage_bin(0) == "0만~1.5만km"
+        assert calculate_mileage_bin(14999) == "0만~1.5만km"
+        assert calculate_mileage_bin(15000) == "1.5만~3만km"
+        assert calculate_mileage_bin(200000) == "20만km 이상"
+        assert calculate_mileage_bin(250000) == "20만km 이상"
+        assert calculate_mileage_bin("미상") == "미상"
+        assert calculate_mileage_bin(None) == "미상"
 
 
 def test_accident_free():

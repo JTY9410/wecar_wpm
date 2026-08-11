@@ -2,11 +2,17 @@
 import math
 
 from config import Config
+from app.services.analysis_logic import get_params
 
 
 def calculate_mileage_bin(mileage, step=None, cap=None):
-    step = step or Config.KM_BUCKET_STEP
-    cap = cap or Config.KM_BUCKET_MAX
+    if step is None or cap is None:
+        p = get_params(
+            "mileage.km_bin",
+            {"step": Config.KM_BUCKET_STEP, "max": Config.KM_BUCKET_MAX},
+        )
+        step = step if step is not None else p["step"]
+        cap = cap if cap is not None else p["max"]
     if mileage is None:
         return "미상"
     try:
