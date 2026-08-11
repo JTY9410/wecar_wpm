@@ -41,12 +41,62 @@ docker compose up -d --build
 - 고정 UI: `app/i18n/{ko,en,ja}.json`
 - 자유 텍스트: Google Translate + Gemini 윤문 + `TranslationCache` / `LearnedGlossary`
 
-## Wholesale API (소매 car2 선택 연동)
+## Developer hub (관리자)
 
-car2에서 필요 시:
+관리자 로그인 후 사이드바 **개발자** (`/admin/developer`)에서 다음을 처리합니다.
 
-- `GET /api/v1/wholesale/health`
-- `GET /api/v1/wholesale/prices` — Header `X-API-Key`
-- `GET /api/v1/wholesale/lookup`
+| 탭 | 내용 |
+|----|------|
+| **docs** | Wholesale API 엔드포인트·인증·car1/car2 코드 체계 설명 |
+| **keys** | API 키 발급(`wpm_` + hex)·폐기 — 평문 키는 발급 직후 1회만 표시 |
+| **mapping** | car1↔car2 `VehicleCodeMapping` 동기화·확정/거절·수동 등록·CSV 가져오기/내보내기 |
 
-키: `.env`의 `EXTERNAL_API_KEY`
+매핑 상태: `candidate` · `confirmed` · `rejected` (car2 레코드 cascade 삭제는 하지 않음).
+
+## Wholesale API 인증 (다중 키)
+
+car2 등 외부 소비자용 REST (`/api/v1/wholesale/*`).
+
+**인증:** `X-API-Key: <key>` 또는 `Authorization: Bearer <key>`
+
+1. **DB 발급 키** — Developer hub에서 발급·`verify_api_key`로 검증  
+2. **환경 변수 폴백** — `.env`의 `EXTERNAL_API_KEY` (레거시 단일 키, DB 키와 병행 가능)
+
+폐기된 키·잘못된 키 → `401`. `/health`는 인증 없음.
+
+### 엔드포인트
+
+| Method | Path | 인증 |
+|--------|------|------|
+| GET | `/api/v1/wholesale/health` | 없음 |
+| GET | `/api/v1/wholesale/prices` | 키 |
+| GET | `/api/v1/wholesale/lookup` | 키 |
+| GET | `/api/v1/wholesale/codes/makers` | 키 |
+| GET | `/api/v1/wholesale/codes/models?maker_no=` | 키 |
+| GET | `/api/v1/wholesale/codes/modeldetails?model_no=` | 키 |
+| GET | `/api/v1/wholesale/codes/grades?mdetail_no=` | 키 |
+| GET | `/api/v1/wholesale/codes/gradedetails?grade_no=` | 키 |
+
+`prices` / `lookup`는 WPM 내부 번호(`maker_no`, `model_no`, …) 또는 car2 코드로 `resolve_vehicle_codes` 양방향 해석 후 필터합니다. codes 트리 응답의 `car2_code`는 **confirmed** 매핑이 있을 때만 포함됩니다.
+
+## car2 코드 연동 (`CAR2_CODES_BASE_URL`)
+
+car1(WPM)과 car2(PM) DB·저장소는 분리되어 있습니다. car2 쪽 코드 트리를 읽어 매핑 후보를 만들 때 car2 HTTP 베이스 URL이 필요합니다.
+
+```bash
+# .env — Docker에서 호스트의 car2(:8080) 접근 예
+CAR2_CODES_BASE_URL=http://host.docker.internal:8080
+```
+
+로컬 단독 실행 시 car2가 없으면 동기화는 실패할 수 있으며, WPM 도매 기능 자체는 SQLite만으로 동작합니다.
+
+## 로컬 개발 / 테스트
+
+```bash
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+flask db upgrade   # 또는 migrate
+python3 -m pytest -q
+```
+
+Docker 프로젝트명 예: `docker compose -p wecarwpm up -d --build` → `http://127.0.0.1:8090/healthz`
