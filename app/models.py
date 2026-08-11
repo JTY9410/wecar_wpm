@@ -300,3 +300,19 @@ class VehicleCodeMapping(db.Model):
     match_score = db.Column(db.Float)
     source = db.Column(db.String(16), nullable=False, default="manual")
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
+
+
+class AnalysisLogic(db.Model):
+    __tablename__ = "analysis_logic"
+
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    name = db.Column(db.String(120), nullable=False)
+    description = db.Column(db.Text)
+    category = db.Column(db.String(32), nullable=False, default="custom", index=True)
+    is_builtin = db.Column(db.Boolean, default=False, nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    params = db.Column(db.JSON, nullable=False, default=dict)
+    sort_order = db.Column(db.Integer, default=0)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
+    updated_by = db.Column(db.String(80))
