@@ -1,3 +1,94 @@
+def test_wholesale_prices_invalid_maker_code_returns_400(client, db, app):
+    from app.models import MarketSummary, VehicleMaker
+
+    app.config["EXTERNAL_API_KEY"] = "k"
+    with app.app_context():
+        db.session.add(VehicleMaker(maker_no="mk_h", maker_name="현대"))
+        db.session.add(
+            MarketSummary(
+                car_code="x",
+                maker="현대",
+                model_name="쏘나타",
+                mdetail_name="DN8",
+                grade_name="프리미엄",
+                gdetail_name="-",
+                car_year=2020,
+                fuel="가솔린",
+                awd="2WD",
+                imported="국산",
+                is_accident_free=True,
+                km_bin="0-1.5만",
+                hammer_avg=1500,
+                sample_count=3,
+            )
+        )
+        db.session.add(
+            MarketSummary(
+                car_code="y",
+                maker="기아",
+                model_name="K5",
+                mdetail_name="DL3",
+                grade_name="시그니처",
+                gdetail_name="-",
+                car_year=2021,
+                fuel="가솔린",
+                awd="2WD",
+                imported="국산",
+                is_accident_free=True,
+                km_bin="0-1.5만",
+                hammer_avg=1600,
+                sample_count=2,
+            )
+        )
+        db.session.commit()
+    r = client.get(
+        "/api/v1/wholesale/prices?maker_no=INVALID_C2",
+        headers={"X-API-Key": "k"},
+    )
+    assert r.status_code == 400
+    data = r.get_json()
+    assert data["ok"] is False
+    assert data["error"] == "unresolved vehicle codes"
+    assert "maker" in data["resolved"]["unresolved"]
+
+
+def test_wholesale_prices_model_only_without_maker_returns_400(client, db, app):
+    from app.models import MarketSummary, VehicleMaker, VehicleModel
+
+    app.config["EXTERNAL_API_KEY"] = "k"
+    with app.app_context():
+        db.session.add(VehicleMaker(maker_no="mk_h", maker_name="현대"))
+        db.session.add(VehicleModel(model_no="md_s", maker_no="mk_h", model_name="쏘나타"))
+        db.session.add(
+            MarketSummary(
+                car_code="x",
+                maker="현대",
+                model_name="쏘나타",
+                mdetail_name="DN8",
+                grade_name="프리미엄",
+                gdetail_name="-",
+                car_year=2020,
+                fuel="가솔린",
+                awd="2WD",
+                imported="국산",
+                is_accident_free=True,
+                km_bin="0-1.5만",
+                hammer_avg=1500,
+                sample_count=3,
+            )
+        )
+        db.session.commit()
+    r = client.get(
+        "/api/v1/wholesale/prices?model=쏘나타",
+        headers={"X-API-Key": "k"},
+    )
+    assert r.status_code == 400
+    data = r.get_json()
+    assert data["ok"] is False
+    assert data["error"] == "unresolved vehicle codes"
+    assert "model" in data["resolved"]["unresolved"]
+
+
 def test_wholesale_prices_resolves_mapped_maker(client, db, app):
     from app.models import MarketSummary, VehicleMaker, VehicleCodeMapping
 

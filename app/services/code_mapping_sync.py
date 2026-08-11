@@ -117,6 +117,25 @@ def _get_mapping(level: str, car2_code: str) -> VehicleCodeMapping | None:
     ).scalar_one_or_none()
 
 
+def _confirmed_car1_conflict(
+    level: str, car1_code: str, *, exclude_car2: str | None = None
+) -> VehicleCodeMapping | None:
+    stmt = db.select(VehicleCodeMapping).where(
+        VehicleCodeMapping.level == level,
+        VehicleCodeMapping.car1_code == car1_code,
+        VehicleCodeMapping.status == "confirmed",
+    )
+    if exclude_car2:
+        stmt = stmt.where(VehicleCodeMapping.car2_code != exclude_car2)
+    return db.session.execute(stmt).scalar_one_or_none()
+
+
+def confirmed_car1_conflict(
+    level: str, car1_code: str, *, exclude_car2: str | None = None
+) -> VehicleCodeMapping | None:
+    return _confirmed_car1_conflict(level, car1_code, exclude_car2=exclude_car2)
+
+
 def _upsert_candidate(
     level: str,
     car2_code: str,
@@ -340,8 +359,8 @@ def sync_candidates_from_car2(base_url: str | None = None) -> dict[str, Any]:
         return {"ok": False, "created": created, "skipped": skipped, "error": str(exc)}
 
 
-def import_csv(text: str) -> dict[str, Any]:
-    created = updated = 0
+def import_csv(text: str, *, force: bool = False) -> dict[str, Any]:
+    created = updated = skipped = 0
     try:
         reader = csv.DictReader(io.StringIO(text))
         if not reader.fieldnames or set(_CSV_HEADER) - set(reader.fieldnames):
@@ -349,6 +368,7 @@ def import_csv(text: str) -> dict[str, Any]:
                 "ok": False,
                 "created": 0,
                 "updated": 0,
+                "skipped": 0,
                 "error": "invalid CSV header",
             }
         for row in reader:
@@ -359,6 +379,12 @@ def import_csv(text: str) -> dict[str, Any]:
                 continue
             existing = _get_mapping(level, car2_code)
             if existing:
+                if existing.status in _PROTECTED and not force:
+                    skipped += 1
+                    continue
+                if _confirmed_car1_conflict(level, car1_code, exclude_car2=car2_code):
+                    skipped += 1
+                    continue
                 existing.car1_code = car1_code
                 existing.car2_name = _clean(row.get("car2_name"))
                 existing.car1_name = _clean(row.get("car1_name"))
@@ -366,6 +392,9 @@ def import_csv(text: str) -> dict[str, Any]:
                 existing.source = "csv"
                 updated += 1
             else:
+                if _confirmed_car1_conflict(level, car1_code):
+                    skipped += 1
+                    continue
                 db.session.add(
                     VehicleCodeMapping(
                         level=level,
@@ -379,10 +408,22 @@ def import_csv(text: str) -> dict[str, Any]:
                 )
                 created += 1
         db.session.commit()
-        return {"ok": True, "created": created, "updated": updated, "error": None}
+        return {
+            "ok": True,
+            "created": created,
+            "updated": updated,
+            "skipped": skipped,
+            "error": None,
+        }
     except Exception as exc:
         db.session.rollback()
-        return {"ok": False, "created": created, "updated": updated, "error": str(exc)}
+        return {
+            "ok": False,
+            "created": created,
+            "updated": updated,
+            "skipped": skipped,
+            "error": str(exc),
+        }
 
 
 def export_csv() -> str:
@@ -412,6 +453,10 @@ def set_mapping_status(mapping_id: int, status: str) -> bool:
         return False
     row = db.session.get(VehicleCodeMapping, mapping_id)
     if not row:
+        return False
+    if status == "confirmed" and _confirmed_car1_conflict(
+        row.level, row.car1_code, exclude_car2=row.car2_code
+    ):
         return False
     row.status = status
     db.session.commit()

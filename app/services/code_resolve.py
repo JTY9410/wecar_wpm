@@ -164,6 +164,12 @@ def resolve_vehicle_codes(
     for level, model_cls, pk_attr, name_attr, parent_attr in _LEVELS:
         code_in, name_in = inputs[level]
         if not code_in and not name_in:
+            has_later = any(
+                inputs[later][0] or inputs[later][1]
+                for later in _PARTS[_PARTS.index(level) + 1 :]
+            )
+            if has_later and parent_code is None:
+                continue
             break
         if parent_attr and not parent_code:
             unresolved.append(level)

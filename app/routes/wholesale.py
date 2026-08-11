@@ -53,21 +53,37 @@ def _resolved_response(resolved):
         "grade_name": resolved.get("grade_name"),
         "gdetail_name": resolved.get("gdetail_name"),
         "car2": resolved.get("car2") or {},
+        "match_level": resolved.get("match_level"),
+        "unresolved": resolved.get("unresolved") or [],
     }
 
 
 def _apply_resolved_market_filters(q, resolved):
+    applied = 0
     if resolved.get("maker_name"):
         q = q.where(MarketSummary.maker == resolved["maker_name"])
+        applied += 1
     if resolved.get("model_name"):
         q = q.where(MarketSummary.model_name == resolved["model_name"])
+        applied += 1
     if resolved.get("mdetail_name"):
         q = q.where(MarketSummary.mdetail_name == resolved["mdetail_name"])
+        applied += 1
     if resolved.get("grade_name"):
         q = q.where(MarketSummary.grade_name == resolved["grade_name"])
+        applied += 1
     if resolved.get("gdetail_name"):
         q = q.where(MarketSummary.gdetail_name == resolved["gdetail_name"])
-    return q
+        applied += 1
+    return q, applied
+
+
+def _hierarchy_unresolved_response(resolved):
+    return jsonify({
+        "ok": False,
+        "error": "unresolved vehicle codes",
+        "resolved": _resolved_response(resolved),
+    }), 400
 
 
 def _car2_codes_for_level(level, car1_codes):
@@ -129,7 +145,9 @@ def prices():
     if car_code:
         q = q.where(MarketSummary.car_code == car_code)
     if has_hierarchy:
-        q = _apply_resolved_market_filters(q, resolved)
+        q, applied = _apply_resolved_market_filters(q, resolved)
+        if applied == 0:
+            return _hierarchy_unresolved_response(resolved)
     if car_year:
         q = q.where(MarketSummary.car_year == car_year)
     if fuel:
@@ -196,7 +214,9 @@ def lookup():
     if db.session.scalar(db.select(db.func.count()).select_from(MarketSummary).where(MarketSummary.car_code == code)) == 0:
         q = db.select(MarketSummary)
         if has_hierarchy:
-            q = _apply_resolved_market_filters(q, resolved)
+            q, applied = _apply_resolved_market_filters(q, resolved)
+            if applied == 0:
+                return _hierarchy_unresolved_response(resolved)
         else:
             if request.args.get("maker"):
                 q = q.where(MarketSummary.maker == request.args.get("maker"))

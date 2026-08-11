@@ -591,6 +591,7 @@ def developer_mapping_manual():
     level = (request.form.get("level") or "").strip()
     car2_code = (request.form.get("car2_code") or "").strip()
     car1_code = (request.form.get("car1_code") or "").strip()
+    force = request.form.get("force") == "1"
     if not level or not car2_code or not car1_code:
         flash("level, car2_code, car1_code는 필수입니다.", "danger")
         return redirect(url_for("admin.developer", tab="mapping"))
@@ -603,6 +604,12 @@ def developer_mapping_manual():
     ).scalar_one_or_none()
     car2_name = (request.form.get("car2_name") or "").strip() or None
     car1_name = (request.form.get("car1_name") or "").strip() or None
+    if existing and existing.status in ("confirmed", "rejected") and not force:
+        flash("confirmed/rejected 매핑은 force=1 없이 덮어쓸 수 없습니다.", "warning")
+        return redirect(url_for("admin.developer", tab="mapping"))
+    if code_mapping_sync.confirmed_car1_conflict(level, car1_code, exclude_car2=car2_code):
+        flash("동일 car1_code에 다른 confirmed 매핑이 이미 있습니다.", "danger")
+        return redirect(url_for("admin.developer", tab="mapping"))
     if existing:
         existing.car1_code = car1_code
         existing.car2_name = car2_name
@@ -635,10 +642,12 @@ def developer_mapping_import():
         flash("CSV 파일을 선택하세요.", "danger")
         return redirect(url_for("admin.developer", tab="mapping"))
     text = file.read().decode("utf-8-sig")
-    result = code_mapping_sync.import_csv(text)
+    force = request.form.get("force") == "1"
+    result = code_mapping_sync.import_csv(text, force=force)
     if result.get("ok"):
         flash(
-            f"CSV 가져오기 완료: {result['created']}건 생성, {result['updated']}건 갱신",
+            f"CSV 가져오기 완료: {result['created']}건 생성, {result['updated']}건 갱신, "
+            f"{result.get('skipped', 0)}건 건너뜀",
             "success",
         )
     else:
