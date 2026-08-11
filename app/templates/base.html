@@ -78,11 +78,17 @@
       </span>
       <span class="side-rail-label">{{ t('users') }}</span>
     </a>
-    <a href="{{ url_for('admin.dashboard') }}#llm-settings" class="side-rail-item" title="API 키">
+    <a href="{{ url_for('admin.developer') }}" class="side-rail-item {{ 'active' if ep == 'admin.developer' }}" title="{{ t('nav_developer') }}">
+      <span class="side-rail-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 9l3 3-3 3M13 15h3M4 4h16v16H4z"/></svg>
+      </span>
+      <span class="side-rail-label">{{ t('nav_developer') }}</span>
+    </a>
+    <a href="{{ url_for('admin.dashboard') }}#llm-settings" class="side-rail-item" title="AI 설정">
       <span class="side-rail-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="4"/></svg>
       </span>
-      <span class="side-rail-label">AI</span>
+      <span class="side-rail-label">AI 설정</span>
     </a>
     <a href="{{ url_for('admin.ai_learning') }}" class="side-rail-item {{ 'active' if ep == 'admin.ai_learning' }}" title="AI학습">
       <span class="side-rail-icon" aria-hidden="true">
@@ -143,6 +149,7 @@
   <a href="{{ url_for('briefing.index') }}" class="mobile-nav-item {{ 'active' if ep and ep.startswith('briefing.') }}">{{ t('nav_briefing') }}</a>
   {% if current_user.is_admin %}
   <a href="{{ url_for('admin.dashboard') }}" class="mobile-nav-item {{ 'active' if ep == 'admin.dashboard' }}">{{ t('admin') }}</a>
+  <a href="{{ url_for('admin.developer') }}" class="mobile-nav-item {{ 'active' if ep == 'admin.developer' }}">{{ t('nav_developer') }}</a>
   <a href="{{ url_for('admin.users') }}" class="mobile-nav-item {{ 'active' if ep == 'admin.users' }}">{{ t('users') }}</a>
   {% endif %}
   <a href="{{ url_for('auth.logout') }}" class="mobile-nav-item">{{ t('logout') }}</a>

@@ -31,6 +31,15 @@ def test_admin_upload_rejects_non_excel(client):
     assert resp.status_code == 400
 
 
+def test_developer_requires_admin(client):
+    r = client.get("/admin/developer")
+    assert r.status_code in (302, 401)
+    login(client)
+    r = client.get("/admin/developer")
+    assert r.status_code == 200
+    assert b"API" in r.data or "명세서".encode() in r.data
+
+
 def test_user_cannot_upload(app, client):
     from app.extensions import db
     from app.models import User

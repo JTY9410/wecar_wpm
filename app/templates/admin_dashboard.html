@@ -23,7 +23,6 @@
       <h6 class="fw-bold">시스템 제어</h6>
       <button class="btn btn-outline-primary btn-sm" onclick="post('/admin/sync')">수동 동기화 (폴백)</button>
       <button class="btn btn-outline-primary btn-sm" onclick="post('/admin/retrain')">AI 모델 재학습</button>
-      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('admin.ai_learning') }}">AI학습진행도</a>
       <button class="btn btn-outline-success btn-sm" onclick="runSummary()">시세 정성 요약 발행</button>
       <div id="summaryOut" class="small mt-2 text-muted" style="white-space:pre-wrap"></div>
     </div>
@@ -31,7 +30,7 @@
 </div>
 
 <div class="glass-card mt-3 p-3" id="llm-settings">
-    <h5 class="fw-bold mb-1">LLM API 키 입력</h5>
+    <h5 class="fw-bold mb-1">AI 설정</h5>
     <p class="small text-muted mb-3">
       아래에서 각 AI 제공자의 <strong>API 키를 직접 입력</strong>한 뒤 <strong>키 저장</strong>을 누르세요.
       저장 후 <strong>연결테스트</strong> → <strong>활성화</strong> 순서로 사용합니다.

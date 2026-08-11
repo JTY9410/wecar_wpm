@@ -1,0 +1,346 @@
+<!-- [UI Flow: GET /admin/developer — API 명세서 · 키 발급/폐기 · 코드 매핑 관리] -->
+{% extends "base.html" %}
+{% block page_title %}개발자{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <a href="{{ url_for('admin.dashboard') }}" class="text-muted small">← 대시보드</a>
+  <h2 class="mb-1 mt-2">개발자 허브</h2>
+  <p class="text-muted mb-0">도매 API 명세서, 파트너 API 키, car1↔car2 차량코드 매핑을 관리합니다.</p>
+</div>
+
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item">
+    <a class="nav-link {{ 'active' if tab == 'docs' }}" href="{{ url_for('admin.developer', tab='docs') }}">API 명세서</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {{ 'active' if tab == 'keys' }}" href="{{ url_for('admin.developer', tab='keys') }}">API 키</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {{ 'active' if tab == 'mapping' }}" href="{{ url_for('admin.developer', tab='mapping') }}">코드 매핑</a>
+  </li>
+</ul>
+
+{% if tab == 'docs' %}
+<div class="glass-card p-3">
+  <h5 class="fw-bold mb-3">도매 API (External)</h5>
+  <p class="small text-muted">
+    Base URL: <code>/api/v1/wholesale</code> · 인증: Header <code>X-API-Key</code> 또는
+    <code>Authorization: Bearer &lt;key&gt;</code>
+  </p>
+
+  <div class="table-responsive mb-4">
+    <table class="table table-sm align-middle">
+      <thead>
+        <tr><th>Method</th><th>Path</th><th>인증</th><th>설명</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="badge text-bg-success">GET</span></td>
+          <td><code>/health</code></td>
+          <td>없음</td>
+          <td>서비스 상태 확인</td>
+        </tr>
+        <tr>
+          <td><span class="badge text-bg-primary">GET</span></td>
+          <td><code>/prices</code></td>
+          <td>키</td>
+          <td>도매 시세 조회. <strong>car1·car2 코드·명칭</strong> 모두 허용</td>
+        </tr>
+        <tr>
+          <td><span class="badge text-bg-primary">GET</span></td>
+          <td><code>/lookup</code></td>
+          <td>키</td>
+          <td>car_code 생성 + 매칭 시세. <strong>car1·car2 코드·명칭</strong> 모두 허용</td>
+        </tr>
+        <tr>
+          <td><span class="badge text-bg-primary">GET</span></td>
+          <td><code>/codes/makers</code></td>
+          <td>키</td>
+          <td>제조사 목록 (car2_code alias 포함)</td>
+        </tr>
+        <tr>
+          <td><span class="badge text-bg-primary">GET</span></td>
+          <td><code>/codes/models</code></td>
+          <td>키</td>
+          <td>모델 목록 · <code>?maker_no=</code></td>
+        </tr>
+        <tr>
+          <td><span class="badge text-bg-primary">GET</span></td>
+          <td><code>/codes/modeldetails</code></td>
+          <td>키</td>
+          <td>세부모델 · <code>?model_no=</code></td>
+        </tr>
+        <tr>
+          <td><span class="badge text-bg-primary">GET</span></td>
+          <td><code>/codes/grades</code></td>
+          <td>키</td>
+          <td>등급 · <code>?mdetail_no=</code></td>
+        </tr>
+        <tr>
+          <td><span class="badge text-bg-primary">GET</span></td>
+          <td><code>/codes/gradedetails</code></td>
+          <td>키</td>
+          <td>세부등급 · <code>?grade_no=</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h6 class="fw-bold">/prices 쿼리 파라미터</h6>
+  <div class="table-responsive mb-4">
+    <table class="table table-sm">
+      <thead><tr><th>파라미터</th><th>설명</th></tr></thead>
+      <tbody>
+        <tr><td><code>car_code</code></td><td>car 연동용 해시 코드</td></tr>
+        <tr><td><code>maker_no</code>, <code>model_no</code>, …</td><td>계층 코드 (car1 또는 car2)</td></tr>
+        <tr><td><code>maker</code>, <code>model</code>, …</td><td>명칭으로 조회</td></tr>
+        <tr><td><code>car_year</code>, <code>fuel</code>, <code>awd</code>, <code>km_bin</code></td><td>추가 필터</td></tr>
+        <tr><td><code>limit</code></td><td>최대 500 (기본 100)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h6 class="fw-bold">응답 예시 (prices)</h6>
+  <pre class="small bg-body-secondary p-2 rounded"><code>{
+  "ok": true,
+  "count": 1,
+  "items": [{
+    "car_code": "abc123",
+    "maker": "현대", "model": "쏘나타",
+    "hammer_avg": 1850, "sample_count": 12,
+    "week_no": "2026-W29"
+  }],
+  "resolved": { "maker_no": "H001", "car2": { "maker_no": "C2H" } }
+}</code></pre>
+
+  <hr class="my-4">
+  <h5 class="fw-bold mb-2">세션 API (로그인 필요)</h5>
+  <p class="small text-muted mb-3">
+    아래 API는 브라우저 세션(로그인)으로 호출합니다. 도매 API 키와 별개입니다.
+  </p>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead>
+        <tr><th>Prefix</th><th>역할</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>/api/codes/*</code></td>
+          <td>
+            <strong>vehicle_* 계층</strong> — maker → model → mdetail → grade → gdetail
+            마스터 코드 트리 (car1 내부 PK)
+          </td>
+        </tr>
+        <tr>
+          <td><code>/api/cascade/*</code></td>
+          <td>
+            <strong>MarketSummary 명칭</strong> 기반 캐스케이드 — 시세 그리드에 실제 존재하는
+            maker/model/… 이름 목록 (vehicle_*와 ID·명칭이 다를 수 있음)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% elif tab == 'keys' %}
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="glass-card p-3">
+      <h6 class="fw-bold mb-3">새 API 키 발급</h6>
+      <form method="POST" action="{{ url_for('admin.developer_issue_key') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="mb-2">
+          <label class="form-label small" for="key-name">이름 (메모)</label>
+          <input id="key-name" name="name" class="form-control form-control-sm" placeholder="예: car-partner" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">키 발급</button>
+      </form>
+      <p class="small text-muted mt-2 mb-0">발급 직후 평문 키가 한 번만 표시됩니다. 반드시 복사해 보관하세요.</p>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="glass-card p-3">
+      <h6 class="fw-bold mb-3">발급된 키</h6>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th>이름</th>
+              <th>접두사</th>
+              <th>상태</th>
+              <th>생성</th>
+              <th>마지막 사용</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for k in keys %}
+            <tr>
+              <td>{{ k.name }}</td>
+              <td><code>{{ k.key_prefix }}…</code></td>
+              <td>
+                {% if k.is_active %}
+                <span class="badge text-bg-success">활성</span>
+                {% else %}
+                <span class="badge text-bg-secondary">폐기</span>
+                {% endif %}
+              </td>
+              <td class="small">{{ k.created_at.strftime('%Y-%m-%d') if k.created_at else '—' }}</td>
+              <td class="small">{{ k.last_used_at.strftime('%Y-%m-%d %H:%M') if k.last_used_at else '—' }}</td>
+              <td class="text-end">
+                {% if k.is_active %}
+                <form method="POST" action="{{ url_for('admin.developer_revoke_key', key_id=k.id) }}" class="d-inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('이 API 키를 폐기할까요?')">폐기</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="text-muted text-center">발급된 키가 없습니다.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% elif tab == 'mapping' %}
+<div class="row g-3 mb-3">
+  <div class="col-md-6">
+    <div class="glass-card p-3">
+      <h6 class="fw-bold mb-2">car2 동기화</h6>
+      <p class="small text-muted mb-2">소스: <code>{{ car2_base_url }}</code>/api/codes/*</p>
+      <form method="POST" action="{{ url_for('admin.developer_mapping_sync') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-outline-primary btn-sm">후보 동기화</button>
+      </form>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="glass-card p-3">
+      <h6 class="fw-bold mb-2">CSV 가져오기 / 내보내기</h6>
+      <form method="POST" action="{{ url_for('admin.developer_mapping_import') }}" enctype="multipart/form-data" class="d-flex gap-2 align-items-end mb-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="file" name="file" accept=".csv" class="form-control form-control-sm" required>
+        <button type="submit" class="btn btn-outline-secondary btn-sm text-nowrap">가져오기</button>
+      </form>
+      <a href="{{ url_for('admin.developer_mapping_export') }}" class="btn btn-outline-secondary btn-sm">내보내기 (CSV)</a>
+    </div>
+  </div>
+</div>
+
+<div class="glass-card p-3 mb-3">
+  <h6 class="fw-bold mb-3">수동 매핑 추가</h6>
+  <form method="POST" action="{{ url_for('admin.developer_mapping_manual') }}" class="row g-2 align-items-end">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="col-6 col-md-2">
+      <label class="form-label small">level</label>
+      <select name="level" class="form-select form-select-sm" required>
+        <option value="maker">maker</option>
+        <option value="model">model</option>
+        <option value="mdetail">mdetail</option>
+        <option value="grade">grade</option>
+        <option value="gdetail">gdetail</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small">car2_code</label>
+      <input name="car2_code" class="form-control form-control-sm" required>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small">car1_code</label>
+      <input name="car1_code" class="form-control form-control-sm" required>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small">car2_name</label>
+      <input name="car2_name" class="form-control form-control-sm">
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small">car1_name</label>
+      <input name="car1_name" class="form-control form-control-sm">
+    </div>
+    <div class="col-6 col-md-2">
+      <button type="submit" class="btn btn-primary btn-sm w-100">저장 (confirmed)</button>
+    </div>
+  </form>
+</div>
+
+<div class="glass-card p-3">
+  <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h6 class="fw-bold mb-0 me-2">매핑 목록</h6>
+    <div class="btn-group btn-group-sm">
+      <a href="{{ url_for('admin.developer', tab='mapping') }}" class="btn btn-outline-secondary {{ 'active' if not status_filter }}">전체</a>
+      <a href="{{ url_for('admin.developer', tab='mapping', status='candidate') }}" class="btn btn-outline-secondary {{ 'active' if status_filter == 'candidate' }}">후보</a>
+      <a href="{{ url_for('admin.developer', tab='mapping', status='confirmed') }}" class="btn btn-outline-secondary {{ 'active' if status_filter == 'confirmed' }}">확정</a>
+      <a href="{{ url_for('admin.developer', tab='mapping', status='rejected') }}" class="btn btn-outline-secondary {{ 'active' if status_filter == 'rejected' }}">거절</a>
+    </div>
+    <select class="form-select form-select-sm w-auto" onchange="location.href=this.value">
+      <option value="{{ url_for('admin.developer', tab='mapping', status=status_filter or none) }}">level: 전체</option>
+      {% for lv in ['maker', 'model', 'mdetail', 'grade', 'gdetail'] %}
+      <option value="{{ url_for('admin.developer', tab='mapping', status=status_filter or none, level=lv) }}" {{ 'selected' if level_filter == lv }}>{{ lv }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead>
+        <tr>
+          <th>level</th>
+          <th>car2</th>
+          <th>car1</th>
+          <th>상태</th>
+          <th>점수</th>
+          <th>출처</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in mappings %}
+        <tr>
+          <td><span class="badge text-bg-light">{{ m.level }}</span></td>
+          <td><code>{{ m.car2_code }}</code> {{ m.car2_name or '' }}</td>
+          <td><code>{{ m.car1_code }}</code> {{ m.car1_name or '' }}</td>
+          <td>
+            {% if m.status == 'confirmed' %}
+            <span class="badge text-bg-success">확정</span>
+            {% elif m.status == 'rejected' %}
+            <span class="badge text-bg-danger">거절</span>
+            {% else %}
+            <span class="badge text-bg-warning">후보</span>
+            {% endif %}
+          </td>
+          <td class="small">{{ '%.2f'|format(m.match_score) if m.match_score else '—' }}</td>
+          <td class="small">{{ m.source }}</td>
+          <td class="text-end text-nowrap">
+            {% if m.status != 'confirmed' %}
+            <form method="POST" action="{{ url_for('admin.developer_mapping_status', mapping_id=m.id) }}" class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="status" value="confirmed">
+              <input type="hidden" name="return_status" value="{{ status_filter }}">
+              <input type="hidden" name="return_level" value="{{ level_filter }}">
+              <button type="submit" class="btn btn-sm btn-outline-success">확정</button>
+            </form>
+            {% endif %}
+            {% if m.status != 'rejected' %}
+            <form method="POST" action="{{ url_for('admin.developer_mapping_status', mapping_id=m.id) }}" class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="status" value="rejected">
+              <input type="hidden" name="return_status" value="{{ status_filter }}">
+              <input type="hidden" name="return_level" value="{{ level_filter }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger">거절</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-muted text-center">매핑 데이터가 없습니다.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

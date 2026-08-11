@@ -3,7 +3,7 @@ import re
 import uuid
 from datetime import date, datetime
 
-from flask import (Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for)
+from flask import (Blueprint, current_app, flash, jsonify, make_response, redirect, render_template, request, url_for)
 from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
 
@@ -11,13 +11,17 @@ from app.decorators import admin_required
 from app.extensions import db
 from app.models import (
     AiLearningMilestone,
+    ApiKey,
     AuctionRecord,
     LearnedGlossary,
     LLMConfig,
     SyncLog,
     TranslationCache,
     UploadHistory,
+    VehicleCodeMapping,
 )
+from app.services import api_keys as api_key_service
+from app.services import code_mapping_sync
 from app.services.ai_learning import get_progress_stats, list_milestones, seed_default_milestone
 from app.services import google_translate, market_query, rag_store
 from app.services.excel_pipeline import ExcelValidationError, process_weekly_upload
@@ -486,3 +490,168 @@ def delete_milestone(row_id):
     db.session.delete(row)
     db.session.commit()
     return jsonify({"success": True})
+
+
+@admin_bp.route("/developer")
+@login_required
+@admin_required
+def developer():
+    tab = request.args.get("tab", "docs")
+    if tab not in ("docs", "keys", "mapping"):
+        tab = "docs"
+
+    keys = []
+    mappings = []
+    status_filter = request.args.get("status", "")
+    level_filter = request.args.get("level", "")
+
+    if tab == "keys":
+        keys = db.session.execute(
+            db.select(ApiKey).order_by(ApiKey.created_at.desc())
+        ).scalars().all()
+    elif tab == "mapping":
+        q = db.select(VehicleCodeMapping).order_by(VehicleCodeMapping.updated_at.desc())
+        if status_filter in ("candidate", "confirmed", "rejected"):
+            q = q.where(VehicleCodeMapping.status == status_filter)
+        if level_filter in ("maker", "model", "mdetail", "grade", "gdetail"):
+            q = q.where(VehicleCodeMapping.level == level_filter)
+        mappings = db.session.execute(q.limit(200)).scalars().all()
+
+    return render_template(
+        "admin_developer.html",
+        tab=tab,
+        keys=keys,
+        mappings=mappings,
+        status_filter=status_filter,
+        level_filter=level_filter,
+        car2_base_url=current_app.config.get("CAR2_CODES_BASE_URL", ""),
+    )
+
+
+@admin_bp.route("/developer/keys", methods=["POST"])
+@login_required
+@admin_required
+def developer_issue_key():
+    name = (request.form.get("name") or "unnamed").strip()
+    _row, plain = api_key_service.issue_api_key(name, created_by=current_user.username)
+    flash(
+        f"API 키가 발급되었습니다. 아래 키는 이번에만 표시됩니다: {plain}",
+        "warning",
+    )
+    return redirect(url_for("admin.developer", tab="keys"))
+
+
+@admin_bp.route("/developer/keys/<int:key_id>/revoke", methods=["POST"])
+@login_required
+@admin_required
+def developer_revoke_key(key_id):
+    if api_key_service.revoke_api_key(key_id):
+        flash("API 키를 폐기했습니다.", "success")
+    else:
+        flash("키를 찾을 수 없거나 이미 폐기되었습니다.", "danger")
+    return redirect(url_for("admin.developer", tab="keys"))
+
+
+@admin_bp.route("/developer/mapping/sync", methods=["POST"])
+@login_required
+@admin_required
+def developer_mapping_sync():
+    result = code_mapping_sync.sync_candidates_from_car2()
+    if result.get("ok"):
+        flash(
+            f"동기화 완료: {result['created']}건 생성, {result['skipped']}건 건너뜀",
+            "success",
+        )
+    else:
+        flash(f"동기화 실패: {result.get('error')}", "danger")
+    return redirect(url_for("admin.developer", tab="mapping"))
+
+
+@admin_bp.route("/developer/mapping/<int:mapping_id>/status", methods=["POST"])
+@login_required
+@admin_required
+def developer_mapping_status(mapping_id):
+    status = request.form.get("status", "")
+    if code_mapping_sync.set_mapping_status(mapping_id, status):
+        flash(f"상태를 {status}(으)로 변경했습니다.", "success")
+    else:
+        flash("상태 변경에 실패했습니다.", "danger")
+    qs = {"tab": "mapping"}
+    if request.form.get("return_status"):
+        qs["status"] = request.form.get("return_status")
+    if request.form.get("return_level"):
+        qs["level"] = request.form.get("return_level")
+    return redirect(url_for("admin.developer", **qs))
+
+
+@admin_bp.route("/developer/mapping/manual", methods=["POST"])
+@login_required
+@admin_required
+def developer_mapping_manual():
+    level = (request.form.get("level") or "").strip()
+    car2_code = (request.form.get("car2_code") or "").strip()
+    car1_code = (request.form.get("car1_code") or "").strip()
+    if not level or not car2_code or not car1_code:
+        flash("level, car2_code, car1_code는 필수입니다.", "danger")
+        return redirect(url_for("admin.developer", tab="mapping"))
+
+    existing = db.session.execute(
+        db.select(VehicleCodeMapping).where(
+            VehicleCodeMapping.level == level,
+            VehicleCodeMapping.car2_code == car2_code,
+        )
+    ).scalar_one_or_none()
+    car2_name = (request.form.get("car2_name") or "").strip() or None
+    car1_name = (request.form.get("car1_name") or "").strip() or None
+    if existing:
+        existing.car1_code = car1_code
+        existing.car2_name = car2_name
+        existing.car1_name = car1_name
+        existing.status = "confirmed"
+        existing.source = "manual"
+    else:
+        db.session.add(
+            VehicleCodeMapping(
+                level=level,
+                car2_code=car2_code,
+                car1_code=car1_code,
+                car2_name=car2_name,
+                car1_name=car1_name,
+                status="confirmed",
+                source="manual",
+            )
+        )
+    db.session.commit()
+    flash("매핑을 저장했습니다.", "success")
+    return redirect(url_for("admin.developer", tab="mapping"))
+
+
+@admin_bp.route("/developer/mapping/import", methods=["POST"])
+@login_required
+@admin_required
+def developer_mapping_import():
+    file = request.files.get("file")
+    if not file or not file.filename:
+        flash("CSV 파일을 선택하세요.", "danger")
+        return redirect(url_for("admin.developer", tab="mapping"))
+    text = file.read().decode("utf-8-sig")
+    result = code_mapping_sync.import_csv(text)
+    if result.get("ok"):
+        flash(
+            f"CSV 가져오기 완료: {result['created']}건 생성, {result['updated']}건 갱신",
+            "success",
+        )
+    else:
+        flash(f"CSV 가져오기 실패: {result.get('error')}", "danger")
+    return redirect(url_for("admin.developer", tab="mapping"))
+
+
+@admin_bp.route("/developer/mapping/export")
+@login_required
+@admin_required
+def developer_mapping_export():
+    csv_text = code_mapping_sync.export_csv()
+    resp = make_response(csv_text)
+    resp.headers["Content-Type"] = "text/csv; charset=utf-8"
+    resp.headers["Content-Disposition"] = "attachment; filename=vehicle_code_mapping.csv"
+    return resp
