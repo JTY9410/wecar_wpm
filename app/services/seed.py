@@ -29,4 +29,7 @@ def seed_admin(app):
             LLMConfig(provider="claude", is_active=False, model_name="claude-3-5-sonnet-20241022"),
         ])
         db.session.commit()
+    from app.services.analysis_logic import seed_builtin_logics
+
+    seed_builtin_logics()
     return user
