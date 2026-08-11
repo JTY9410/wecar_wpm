@@ -40,6 +40,15 @@ def test_developer_requires_admin(client):
     assert b"API" in r.data or "명세서".encode() in r.data
 
 
+def test_analysis_logic_page_requires_admin(client):
+    r = client.get("/admin/analysis-logic")
+    assert r.status_code in (302, 401)
+    login(client)
+    r = client.get("/admin/analysis-logic")
+    assert r.status_code == 200
+    assert b"analysis-logic" in r.data or "분석".encode() in r.data or b"pipeline" in r.data.lower()
+
+
 def test_user_cannot_upload(app, client):
     from app.extensions import db
     from app.models import User

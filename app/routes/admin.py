@@ -1,6 +1,7 @@
 import os
 import re
 import uuid
+import json
 from datetime import date, datetime
 
 from flask import (Blueprint, current_app, flash, jsonify, make_response, redirect, render_template, request, url_for)
@@ -12,6 +13,7 @@ from app.extensions import db
 from app.models import (
     AiLearningMilestone,
     ApiKey,
+    AnalysisLogic,
     AuctionRecord,
     LearnedGlossary,
     LLMConfig,
@@ -21,6 +23,7 @@ from app.models import (
     VehicleCodeMapping,
 )
 from app.services import api_keys as api_key_service
+from app.services import analysis_logic as analysis_logic_service
 from app.services import code_mapping_sync
 from app.services.ai_learning import get_progress_stats, list_milestones, seed_default_milestone
 from app.services import google_translate, market_query, rag_store
@@ -664,3 +667,111 @@ def developer_mapping_export():
     resp.headers["Content-Type"] = "text/csv; charset=utf-8"
     resp.headers["Content-Disposition"] = "attachment; filename=vehicle_code_mapping.csv"
     return resp
+
+
+@admin_bp.route("/analysis-logic")
+@login_required
+@admin_required
+def analysis_logic():
+    tab = request.args.get("tab", "docs")
+    if tab not in ("docs", "logics"):
+        tab = "docs"
+
+    logics = []
+    edit_row = None
+    if tab == "logics":
+        logics = analysis_logic_service.list_logics()
+        edit_id = request.args.get("edit", type=int)
+        if edit_id:
+            edit_row = db.session.get(AnalysisLogic, edit_id)
+
+    return render_template(
+        "admin_analysis_logic.html",
+        tab=tab,
+        logics=logics,
+        edit_row=edit_row,
+    )
+
+
+@admin_bp.route("/analysis-logic/toggle/<int:logic_id>", methods=["POST"])
+@login_required
+@admin_required
+def analysis_logic_toggle(logic_id):
+    row = db.session.get(AnalysisLogic, logic_id)
+    if not row:
+        flash("로직을 찾을 수 없습니다.", "danger")
+        return redirect(url_for("admin.analysis_logic", tab="logics"))
+    analysis_logic_service.set_active(logic_id, not row.is_active)
+    state = "활성" if not row.is_active else "비활성"
+    flash(f"{row.name}을(를) {state}(으)로 변경했습니다.", "success")
+    return redirect(url_for("admin.analysis_logic", tab="logics"))
+
+
+@admin_bp.route("/analysis-logic/save", methods=["POST"])
+@login_required
+@admin_required
+def analysis_logic_save():
+    logic_id = request.form.get("logic_id", type=int)
+    code = (request.form.get("code") or "").strip()
+    name = (request.form.get("name") or "").strip()
+    description = (request.form.get("description") or "").strip() or None
+    category = (request.form.get("category") or "custom").strip()
+    is_active = request.form.get("is_active") == "on"
+    params_raw = (request.form.get("params") or "{}").strip()
+
+    existing = db.session.get(AnalysisLogic, logic_id) if logic_id else None
+    if existing:
+        code = existing.code
+    if not code or not name:
+        flash("code와 name은 필수입니다.", "danger")
+        return redirect(url_for("admin.analysis_logic", tab="logics", edit=logic_id))
+
+    try:
+        params = json.loads(params_raw) if params_raw else {}
+    except json.JSONDecodeError:
+        flash("params JSON 형식이 올바르지 않습니다.", "danger")
+        return redirect(url_for("admin.analysis_logic", tab="logics", edit=logic_id))
+
+    try:
+        analysis_logic_service.upsert(
+            code=code,
+            name=name,
+            description=description,
+            category=category,
+            params=params,
+            is_active=is_active,
+            is_builtin=existing.is_builtin if existing else False,
+            updated_by=current_user.username,
+        )
+    except ValueError as exc:
+        flash(str(exc), "danger")
+        return redirect(url_for("admin.analysis_logic", tab="logics", edit=logic_id))
+
+    flash("분석 로직을 저장했습니다.", "success")
+    return redirect(url_for("admin.analysis_logic", tab="logics"))
+
+
+@admin_bp.route("/analysis-logic/delete/<int:logic_id>", methods=["POST"])
+@login_required
+@admin_required
+def analysis_logic_delete(logic_id):
+    ok, msg = analysis_logic_service.delete_logic(logic_id)
+    if ok:
+        flash("로직을 삭제했습니다.", "success")
+    elif msg == "built-in logic cannot be deleted":
+        flash("내장 로직은 삭제할 수 없습니다.", "warning")
+    else:
+        flash("로직을 찾을 수 없습니다.", "danger")
+    return redirect(url_for("admin.analysis_logic", tab="logics"))
+
+
+@admin_bp.route("/analysis-logic/seed", methods=["POST"])
+@login_required
+@admin_required
+def analysis_logic_seed():
+    created = analysis_logic_service.seed_builtin_logics()
+    if created:
+        flash(f"내장 로직 {created}건을 추가했습니다.", "success")
+    else:
+        flash("내장 로직이 이미 최신 상태입니다.", "info")
+    return redirect(url_for("admin.analysis_logic", tab="logics"))

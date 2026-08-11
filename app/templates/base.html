@@ -84,6 +84,12 @@
       </span>
       <span class="side-rail-label">{{ t('nav_developer') }}</span>
     </a>
+    <a href="{{ url_for('admin.analysis_logic') }}" class="side-rail-item {{ 'active' if ep == 'admin.analysis_logic' }}" title="{{ t('nav_analysis_logic') }}">
+      <span class="side-rail-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 15V9"/><path d="M13 15V7"/><path d="M18 15v-3"/></svg>
+      </span>
+      <span class="side-rail-label">{{ t('nav_analysis_logic') }}</span>
+    </a>
     <a href="{{ url_for('admin.dashboard') }}#llm-settings" class="side-rail-item" title="AI 설정">
       <span class="side-rail-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="4"/></svg>
