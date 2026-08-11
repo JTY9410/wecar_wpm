@@ -268,3 +268,35 @@ class AiLearningMilestone(db.Model):
     created_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     created_at = db.Column(db.DateTime, default=utcnow)
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
+
+
+class ApiKey(db.Model):
+    __tablename__ = "api_key"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    key_prefix = db.Column(db.String(16), nullable=False, index=True)
+    key_hash = db.Column(db.String(255), nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=utcnow)
+    revoked_at = db.Column(db.DateTime)
+    last_used_at = db.Column(db.DateTime)
+    created_by = db.Column(db.String(80))
+
+
+class VehicleCodeMapping(db.Model):
+    __tablename__ = "vehicle_code_mapping"
+    __table_args__ = (
+        db.UniqueConstraint("level", "car2_code", name="uq_vcm_level_car2"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    level = db.Column(db.String(16), nullable=False, index=True)
+    car2_code = db.Column(db.String(64), nullable=False)
+    car1_code = db.Column(db.String(64), nullable=False)
+    car2_name = db.Column(db.String(256))
+    car1_name = db.Column(db.String(256))
+    status = db.Column(db.String(16), nullable=False, default="candidate", index=True)
+    match_score = db.Column(db.Float)
+    source = db.Column(db.String(16), nullable=False, default="manual")
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)

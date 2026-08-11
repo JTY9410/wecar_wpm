@@ -66,6 +66,7 @@ class Config:
     # Runtime mode: standalone (default) | linked (when a PM consumer is wired)
     INTEGRATION_MODE = os.getenv("INTEGRATION_MODE", "standalone")
     TRUST_PROXY = os.getenv("TRUST_PROXY", "0") == "1"
+    CAR2_CODES_BASE_URL = os.getenv("CAR2_CODES_BASE_URL", "http://host.docker.internal:8080")
 
     @classmethod
     def ensure_dirs(cls):
