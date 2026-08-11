@@ -10,6 +10,7 @@ from flask import Blueprint, current_app, jsonify, request
 from app.extensions import db
 from app.models import MarketSummary, VehicleGrade, VehicleGradeDetail, VehicleMaker, VehicleModel, VehicleModelDetail
 from app.services.car_code import build_car_code
+from app.services import api_keys as api_key_service
 from app.services import market_query
 
 wholesale_bp = Blueprint("wholesale", __name__, url_prefix="/api/v1/wholesale")
@@ -18,14 +19,13 @@ wholesale_bp = Blueprint("wholesale", __name__, url_prefix="/api/v1/wholesale")
 def require_api_key(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
-        expected = (current_app.config.get("EXTERNAL_API_KEY") or "").strip()
-        if not expected:
-            return jsonify({"ok": False, "error": "EXTERNAL_API_KEY 미설정"}), 503
+        if not api_key_service.has_any_auth_configured():
+            return jsonify({"ok": False, "error": "API key not configured"}), 503
         provided = request.headers.get("X-API-Key", "")
         auth = request.headers.get("Authorization", "")
         if auth.lower().startswith("bearer "):
             provided = auth[7:].strip()
-        if provided != expected:
+        if api_key_service.verify_api_key(provided) is None:
             return jsonify({"ok": False, "error": "invalid api key"}), 401
         return fn(*args, **kwargs)
     return wrapper
