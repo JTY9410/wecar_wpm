@@ -10,7 +10,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.hedonic
-    image: wecarwpm-hedonic-web:latest
+    image: ghcr.io/jty9410/wecar_wpm-hedonic:latest
     container_name: wecarwpm-hedonic-web
     ports:
       - "8091:5000"
@@ -41,7 +41,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.hedonic
-    image: wecarwpm-hedonic-scheduler:latest
+    image: ghcr.io/jty9410/wecar_wpm-hedonic:latest
     container_name: wecarwpm-hedonic-scheduler
     depends_on:
       web:

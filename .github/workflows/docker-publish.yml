@@ -1,4 +1,4 @@
-# GitHub Container Registry (ghcr.io)에 프로덕션 이미지를 빌드·푸시합니다.
+# GitHub Container Registry (ghcr.io)에 프로덕션·헤도닉 이미지를 빌드·푸시합니다.
 name: Docker Publish
 
 on:
@@ -12,11 +12,18 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: wecar_wpm
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: wecar_wpm
+            file: ./Dockerfile
+          - name: wecar_wpm-hedonic
+            file: ./Dockerfile.hedonic
     steps:
       - uses: actions/checkout@v4
 
@@ -38,13 +45,13 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile
+          file: ${{ matrix.file }}
           push: true
+          no-cache: true
           tags: |
-            ${{ env.REGISTRY }}/${{ steps.ghcr_user.outputs.login }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ steps.ghcr_user.outputs.login }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ steps.ghcr_user.outputs.login }}/${{ matrix.name }}:latest
+            ${{ env.REGISTRY }}/${{ steps.ghcr_user.outputs.login }}/${{ matrix.name }}:${{ github.sha }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            org.opencontainers.image.title=${{ matrix.name }}
