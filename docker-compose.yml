@@ -4,6 +4,7 @@ name: wecarwpm
 services:
   web:
     build: .
+    image: ghcr.io/jty9410/wecar_wpm:latest
     container_name: wecarwpm-web
     ports:
       - "8090:5000"
@@ -31,6 +32,7 @@ services:
 
   scheduler:
     build: .
+    image: ghcr.io/jty9410/wecar_wpm:latest
     container_name: wecarwpm-scheduler
     depends_on:
       web:
