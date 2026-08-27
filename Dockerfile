@@ -24,6 +24,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+LABEL org.opencontainers.image.source="https://github.com/JTY9410/wecar_wpm"
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
     && rm -rf /var/lib/apt/lists/* \
