@@ -1,4 +1,6 @@
 import io
+import re
+from unittest.mock import patch
 
 from app.extensions import db
 from app.models import AuctionRecord, UploadHistory
@@ -29,6 +31,35 @@ def test_admin_upload_rejects_non_excel(client):
     resp = client.post("/admin/upload", data=data,
                        content_type="multipart/form-data")
     assert resp.status_code == 400
+
+
+def test_admin_dashboard_file_input_not_inside_dropzone(client):
+    """Dropzone textContent/click must not destroy or recurse on the file input."""
+    login(client)
+    html = client.get("/admin/").get_data(as_text=True)
+    dz = re.search(r'<div id="dropzone"[^>]*>(.*?)</div>', html, re.S)
+    assert dz, "dropzone missing"
+    assert 'id="file"' not in dz.group(1)
+    assert re.search(r'<input[^>]*id="file"', html)
+
+
+def test_admin_upload_returns_json_when_train_fails(app, client, tmp_path):
+    login(client)
+    path = build(str(tmp_path / "u.xlsx"))
+    with open(path, "rb") as fh:
+        data = {"file": (io.BytesIO(fh.read()), "20260715_data.xlsx"),
+                "mode": "reset", "week_no": ""}
+        with patch("app.routes.admin.PriceModel") as pm:
+            pm.return_value.train.side_effect = OSError("Read-only file system")
+            resp = client.post("/admin/upload", data=data,
+                               content_type="multipart/form-data")
+    body = resp.get_json()
+    assert resp.status_code == 200
+    assert body is not None
+    assert body["ok"] is True
+    assert body["rows_ok"] == 3
+    with app.app_context():
+        assert db.session.scalar(db.select(db.func.count()).select_from(AuctionRecord)) == 3
 
 
 def test_developer_requires_admin(client):

@@ -1,3 +1,10 @@
+<!--
+  [UI Flow]
+  1. Auth / entry: 관리자 로그인 후 /admin
+  2. Data: POST /admin/upload (multipart file) → {ok, rows_ok, message}
+  3. States: idle | processing | empty | error | success
+  4. Actions → 이력 테이블 새로고침
+-->
 {% extends "base.html" %}
 {% block page_title %}관리자{% endblock %}
 {% block content %}
@@ -5,8 +12,10 @@
   <div class="col-md-6">
     <div class="glass-card h-100 p-3">
       <h6 class="fw-bold">주간 엑셀 업로드</h6>
-      <div id="dropzone" class="dropzone text-center p-4 mb-2">엑셀(.xlsx)을 드래그하거나 클릭
-        <input type="file" id="file" accept=".xlsx,.xls" hidden></div>
+      <div id="dropzone" class="dropzone text-center p-4 mb-2">
+        <span id="dropLabel">엑셀(.xlsx)을 드래그하거나 클릭</span>
+      </div>
+      <input type="file" id="file" accept=".xlsx,.xls" hidden>
       <div class="mb-2"><input id="week" class="form-control form-control-sm" placeholder="주차 (예: 2026-W29, 비우면 자동)"></div>
       <div class="mb-2">
         <label class="me-3"><input type="radio" name="mode" value="append" checked> 추가</label>
@@ -167,11 +176,23 @@
 {% block scripts %}
 <script>
 const fileEl = document.getElementById('file'), dz = document.getElementById('dropzone');
-dz.onclick = () => fileEl.click();
-dz.ondragover = e => { e.preventDefault(); dz.classList.add('over'); };
-dz.ondragleave = () => dz.classList.remove('over');
-dz.ondrop = e => { e.preventDefault(); dz.classList.remove('over'); fileEl.files = e.dataTransfer.files; dz.textContent = fileEl.files[0].name; };
-fileEl.onchange = () => { if (fileEl.files[0]) dz.textContent = fileEl.files[0].name; };
+const dropLabel = document.getElementById('dropLabel');
+dz.addEventListener('click', () => fileEl.click());
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault();
+  dz.classList.remove('over');
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (!f) return;
+  const dt = new DataTransfer();
+  dt.items.add(f);
+  fileEl.files = dt.files;
+  dropLabel.textContent = f.name;
+});
+fileEl.addEventListener('change', () => {
+  if (fileEl.files[0]) dropLabel.textContent = fileEl.files[0].name;
+});
 document.getElementById('upBtn').onclick = async () => {
   if (!fileEl.files[0]) return toast('파일을 선택하세요', 'warning');
   const fd = new FormData();
@@ -179,15 +200,27 @@ document.getElementById('upBtn').onclick = async () => {
   fd.append('mode', document.querySelector('input[name=mode]:checked').value);
   fd.append('week_no', document.getElementById('week').value);
   document.getElementById('upOut').textContent = '처리 중…';
-  const r = await fetch('/admin/upload', {method:'POST', body:fd});
-  const d = await r.json();
-  if (d.ok) {
-    document.getElementById('upOut').textContent = d.message || `완료: ${d.rows_ok}행`;
-    toast(d.message || `완료: ${d.rows_ok}행`, 'success');
-    setTimeout(() => location.reload(), 900);
-  } else {
-    document.getElementById('upOut').textContent = d.error || '실패';
-    toast(d.error || '업로드 실패', 'danger');
+  try {
+    const r = await fetch('/admin/upload', {method:'POST', body:fd});
+    const text = await r.text();
+    let d;
+    try { d = JSON.parse(text); } catch (e) {
+      const msg = '서버 응답 오류 (' + r.status + ')';
+      document.getElementById('upOut').textContent = msg;
+      toast(msg, 'danger');
+      return;
+    }
+    if (d.ok) {
+      document.getElementById('upOut').textContent = d.message || `완료: ${d.rows_ok}행`;
+      toast(d.message || `완료: ${d.rows_ok}행`, 'success');
+      setTimeout(() => location.reload(), 900);
+    } else {
+      document.getElementById('upOut').textContent = d.error || '실패';
+      toast(d.error || '업로드 실패', 'danger');
+    }
+  } catch (e) {
+    document.getElementById('upOut').textContent = '업로드 네트워크 오류';
+    toast('업로드 네트워크 오류', 'danger');
   }
 };
 document.getElementById('clearBtn').onclick = async () => {

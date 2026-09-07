@@ -119,12 +119,24 @@ def upload():
                            records_processed=result["rows_ok"]))
     db.session.commit()
 
-    result["train"] = PriceModel().train()
-    result["hedonic"] = HedonicModel().train()
-    rag_status = rag_store.embed_records(
-        db.session.execute(db.select(AuctionRecord).where(AuctionRecord.week_no == week_no)).scalars().all()
-    )
-    result["rag"] = rag_status.get("status")
+    try:
+        result["train"] = PriceModel().train()
+    except Exception as exc:
+        current_app.logger.exception("price model train after upload failed")
+        result["train"] = {"trained": False, "reason": str(exc)}
+    try:
+        result["hedonic"] = HedonicModel().train()
+    except Exception as exc:
+        current_app.logger.exception("hedonic model train after upload failed")
+        result["hedonic"] = {"trained": False, "reason": str(exc)}
+    try:
+        rag_status = rag_store.embed_records(
+            db.session.execute(db.select(AuctionRecord).where(AuctionRecord.week_no == week_no)).scalars().all()
+        )
+        result["rag"] = rag_status.get("status")
+    except Exception as exc:
+        current_app.logger.exception("rag embed after upload failed")
+        result["rag"] = f"SKIP ({exc})"
     train = result.get("train") or {}
     hedonic = result.get("hedonic") or {}
     message = (
