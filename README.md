@@ -14,6 +14,16 @@
 | Docker 네트워크 | `wecarwpm_net` (독립) | `wecarpm_net` (독립) |
 | GitHub | [wecar_wpm](https://github.com/JTY9410/wecar_wpm) | [wecar_pm](https://github.com/JTY9410/wecar_pm) |
 
+## GitHub 컨테이너 (GHCR)
+
+| 이미지 | pull |
+|--------|------|
+| 프로덕션 | `docker pull ghcr.io/jty9410/wecar_wpm:latest` |
+| 헤도닉 | `docker pull ghcr.io/jty9410/wecar_wpm-hedonic:latest` |
+
+패키지: [wecar_wpm](https://github.com/users/JTY9410/packages/container/package/wecar_wpm) · [wecar_wpm-hedonic](https://github.com/users/JTY9410/packages/container/package/wecar_wpm-hedonic)  
+`main` 푸시 시 `.github/workflows/docker-publish.yml`이 이미지를 다시 올립니다.
+
 ## 실행
 
 ```bash
