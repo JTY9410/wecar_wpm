@@ -150,7 +150,7 @@
   <tbody>{% for h in history %}<tr data-id="{{ h.id }}">
     <td>{{ h.created_at.strftime('%m-%d %H:%M') }}</td><td>{{ h.filename }}</td>
     <td>{{ h.week_no }}</td><td>{{ h.mode }}</td>
-    <td><span class="badge bg-{{ 'success' if h.status=='SUCCESS' else 'danger' }}">{{ h.status }}</span></td>
+    <td><span class="badge bg-{{ 'success' if h.status=='SUCCESS' else ('warning' if h.status=='PROCESSING' else 'danger') }}">{{ h.status }}</span></td>
     <td>{{ h.rows_ok }}</td><td>{{ h.operator }}</td>
     <td class="text-end">
       <button type="button" class="btn btn-sm btn-outline-danger hist-del" data-id="{{ h.id }}">삭제</button>
@@ -221,6 +221,29 @@ document.getElementById('upBtn').onclick = async () => {
         : '서버 응답 오류 (' + r.status + ')';
       document.getElementById('upOut').textContent = msg;
       toast(msg, 'danger');
+      return;
+    }
+    if (d.pending && d.history_id) {
+      document.getElementById('upOut').textContent = '처리 중…';
+      const deadline = Date.now() + 180000;
+      while (Date.now() < deadline) {
+        await new Promise(res => setTimeout(res, 1000));
+        const sr = await fetch('/admin/upload/' + d.history_id + '/status', {credentials: 'same-origin'});
+        let st;
+        try { st = await sr.json(); } catch (e) { continue; }
+        if (st.status === 'SUCCESS') {
+          document.getElementById('upOut').textContent = st.message || `완료: ${st.rows_ok}행`;
+          toast(st.message || `완료: ${st.rows_ok}행`, 'success');
+          setTimeout(() => location.reload(), 900);
+          return;
+        }
+        if (st.status === 'FAIL') {
+          document.getElementById('upOut').textContent = st.error || '실패';
+          toast(st.error || '업로드 실패', 'danger');
+          return;
+        }
+      }
+      toast('처리가 오래 걸립니다. 히스토리에서 상태를 확인해 주세요.', 'warning');
       return;
     }
     if (d.ok) {

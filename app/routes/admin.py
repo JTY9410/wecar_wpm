@@ -42,24 +42,59 @@ admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 ALLOWED_EXT = {".xlsx", ".xls"}
 
 
-def _train_models_async(app, week_no):
-    """Heavy fit after ingest — keep it off the upload response to avoid proxy 502."""
+def _train_models(week_no):
+    try:
+        PriceModel().train()
+    except Exception:
+        current_app.logger.exception("price model train after upload failed")
+    try:
+        HedonicModel().train()
+    except Exception:
+        current_app.logger.exception("hedonic model train after upload failed")
+    try:
+        records = db.session.execute(
+            db.select(AuctionRecord).where(AuctionRecord.week_no == week_no)
+        ).scalars().all()
+        rag_store.embed_records(records)
+    except Exception:
+        current_app.logger.exception("rag embed after upload failed")
+
+
+def _ingest_and_train(app, dest, week_no, mode, history_id):
+    """Ingest + train after the HTTP response so proxies cannot 502 the browser."""
     with app.app_context():
+        hist = db.session.get(UploadHistory, history_id)
         try:
-            PriceModel().train()
-        except Exception:
-            app.logger.exception("price model train after upload failed")
-        try:
-            HedonicModel().train()
-        except Exception:
-            app.logger.exception("hedonic model train after upload failed")
-        try:
-            records = db.session.execute(
-                db.select(AuctionRecord).where(AuctionRecord.week_no == week_no)
-            ).scalars().all()
-            rag_store.embed_records(records)
-        except Exception:
-            app.logger.exception("rag embed after upload failed")
+            result = process_weekly_upload(dest, week_no=week_no, mode=mode)
+            if hist is not None:
+                hist.status = "SUCCESS"
+                hist.rows_ok = result["rows_ok"]
+            db.session.add(SyncLog(sync_type="WEEKLY_EXCEL_UPLOAD", status="SUCCESS",
+                                   records_processed=result["rows_ok"]))
+            db.session.commit()
+        except ExcelValidationError as exc:
+            if hist is not None:
+                hist.status = "FAIL"
+                hist.rows_ok = 0
+            db.session.add(SyncLog(sync_type="WEEKLY_EXCEL_UPLOAD", status="FAIL",
+                                   error_message=str(exc)))
+            db.session.commit()
+            return
+        except Exception as exc:
+            current_app.logger.exception("background excel ingest failed")
+            if hist is not None:
+                hist.status = "FAIL"
+                hist.rows_ok = 0
+            db.session.add(SyncLog(sync_type="WEEKLY_EXCEL_UPLOAD", status="FAIL",
+                                   error_message=str(exc)))
+            db.session.commit()
+            return
+        _train_models(week_no)
+
+
+def _run_train(app, week_no):
+    with app.app_context():
+        _train_models(week_no)
 
 
 @admin_bp.route("/")
@@ -114,43 +149,84 @@ def upload():
     os.makedirs(current_app.config["EXCEL_UPLOAD_PATH"], exist_ok=True)
     file.save(dest)
 
-    try:
-        result = process_weekly_upload(dest, week_no=week_no, mode=mode)
-    except ExcelValidationError as exc:
+    sync = current_app.config.get("UPLOAD_SYNC", current_app.config.get("TESTING", False))
+    if sync:
+        try:
+            result = process_weekly_upload(dest, week_no=week_no, mode=mode)
+        except ExcelValidationError as exc:
+            db.session.add(UploadHistory(filename=filename, week_no=week_no, mode=mode,
+                                         status="FAIL", rows_ok=0,
+                                         operator=current_user.username))
+            db.session.add(SyncLog(sync_type="WEEKLY_EXCEL_UPLOAD", status="FAIL",
+                                   error_message=str(exc)))
+            db.session.commit()
+            return jsonify({"ok": False, "error": str(exc)}), 400
+        except Exception as exc:
+            db.session.add(UploadHistory(filename=filename, week_no=week_no, mode=mode,
+                                         status="FAIL", rows_ok=0,
+                                         operator=current_user.username))
+            db.session.add(SyncLog(sync_type="WEEKLY_EXCEL_UPLOAD", status="FAIL",
+                                   error_message=str(exc)))
+            db.session.commit()
+            return jsonify({"ok": False, "error": f"업로드 처리 실패: {exc}"}), 500
         db.session.add(UploadHistory(filename=filename, week_no=week_no, mode=mode,
-                                     status="FAIL", rows_ok=0,
+                                     status="SUCCESS", rows_ok=result["rows_ok"],
                                      operator=current_user.username))
-        db.session.add(SyncLog(sync_type="WEEKLY_EXCEL_UPLOAD", status="FAIL",
-                               error_message=str(exc)))
+        db.session.add(SyncLog(sync_type="WEEKLY_EXCEL_UPLOAD", status="SUCCESS",
+                               records_processed=result["rows_ok"]))
         db.session.commit()
-        return jsonify({"ok": False, "error": str(exc)}), 400
-    except Exception as exc:
-        db.session.add(UploadHistory(filename=filename, week_no=week_no, mode=mode,
-                                     status="FAIL", rows_ok=0,
-                                     operator=current_user.username))
-        db.session.add(SyncLog(sync_type="WEEKLY_EXCEL_UPLOAD", status="FAIL",
-                               error_message=str(exc)))
-        db.session.commit()
-        return jsonify({"ok": False, "error": f"업로드 처리 실패: {exc}"}), 500
+        app = current_app._get_current_object()
+        threading.Thread(target=_run_train, args=(app, week_no), daemon=True).start()
+        message = (
+            f"업로드 완료: {result['rows_ok']}행 · 시세 {result['summaries']}건 · "
+            f"모델 학습은 백그라운드에서 진행됩니다"
+        )
+        return jsonify({"ok": True, "message": message, **result})
 
-    db.session.add(UploadHistory(filename=filename, week_no=week_no, mode=mode,
-                                 status="SUCCESS", rows_ok=result["rows_ok"],
-                                 operator=current_user.username))
-    db.session.add(SyncLog(sync_type="WEEKLY_EXCEL_UPLOAD", status="SUCCESS",
-                           records_processed=result["rows_ok"]))
+    hist = UploadHistory(filename=filename, week_no=week_no, mode=mode,
+                         status="PROCESSING", rows_ok=0,
+                         operator=current_user.username)
+    db.session.add(hist)
     db.session.commit()
-
     threading.Thread(
-        target=_train_models_async,
-        args=(current_app._get_current_object(), week_no),
+        target=_ingest_and_train,
+        args=(current_app._get_current_object(), dest, week_no, mode, hist.id),
         daemon=True,
-        name="upload-train",
+        name="upload-ingest",
     ).start()
-    message = (
-        f"업로드 완료: {result['rows_ok']}행 · 시세 {result['summaries']}건 · "
-        f"모델 학습은 백그라운드에서 진행됩니다"
-    )
-    return jsonify({"ok": True, "message": message, **result})
+    return jsonify({
+        "ok": True,
+        "pending": True,
+        "history_id": hist.id,
+        "message": "파일을 받았습니다. 처리 중입니다.",
+    })
+
+
+@admin_bp.route("/upload/<int:history_id>/status", methods=["GET"])
+@login_required
+@admin_required
+def upload_status(history_id):
+    hist = db.session.get(UploadHistory, history_id)
+    if hist is None:
+        return jsonify({"ok": False, "error": "업로드 이력을 찾을 수 없습니다."}), 404
+    fail = None
+    if hist.status == "FAIL":
+        log = db.session.execute(
+            db.select(SyncLog).where(SyncLog.sync_type == "WEEKLY_EXCEL_UPLOAD")
+            .order_by(SyncLog.created_at.desc()).limit(1)
+        ).scalar_one_or_none()
+        fail = log.error_message if log is not None else None
+    return jsonify({
+        "ok": True,
+        "status": hist.status,
+        "rows_ok": hist.rows_ok,
+        "pending": hist.status == "PROCESSING",
+        "error": fail,
+        "message": (
+            f"업로드 완료: {hist.rows_ok}행" if hist.status == "SUCCESS"
+            else (fail or "처리 중입니다.")
+        ),
+    })
 
 
 @admin_bp.route("/upload/clear", methods=["POST"])

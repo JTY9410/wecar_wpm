@@ -100,45 +100,60 @@ def test_sqlite_uses_wal(app):
     assert str(mode).lower() == "wal"
 
 
-def test_admin_upload_returns_without_waiting_for_train(app, client, tmp_path):
-    """Ingest JSON must return even if model training blocks (avoids proxy 502)."""
+def test_admin_upload_returns_pending_without_waiting_for_ingest(app, client, tmp_path):
+    """Production upload must return JSON before ingest finishes (avoids proxy 502)."""
+    app.config["UPLOAD_SYNC"] = False
     release = threading.Event()
 
-    def hang_train(_self=None):
+    def hang_ingest(*_a, **_k):
         release.wait(timeout=8)
-        return {"trained": True, "count": 0}
+        return {"rows_ok": 3, "records": 3, "summaries": 1}
 
     login(client)
     path = build(str(tmp_path / "u.xlsx"))
     t0 = time.monotonic()
-    with patch("app.routes.admin.PriceModel") as pm, patch("app.routes.admin.HedonicModel") as hm:
-        pm.return_value.train.side_effect = hang_train
-        hm.return_value.train.side_effect = hang_train
+    with patch("app.routes.admin.process_weekly_upload", side_effect=hang_ingest):
         with open(path, "rb") as fh:
             data = {"file": (io.BytesIO(fh.read()), "20260715_data.xlsx"),
                     "mode": "reset", "week_no": ""}
             resp = client.post("/admin/upload", data=data,
                                content_type="multipart/form-data")
     elapsed = time.monotonic() - t0
-    release.set()
     body = resp.get_json()
+    release.set()
     assert resp.status_code == 200
     assert body["ok"] is True
-    assert body["rows_ok"] == 3
-    assert elapsed < 3
+    assert body.get("pending") is True
+    assert body.get("history_id")
+    assert elapsed < 2
+    st = client.get(f"/admin/upload/{body['history_id']}/status").get_json()
+    assert st["status"] in ("PROCESSING", "SUCCESS")
 
 
 def test_compose_publishes_nginx_proxy():
     text = Path("docker-compose.yml").read_text(encoding="utf-8")
     assert "nginx:" in text
-    assert "8090:80" in text
+    assert "127.0.0.1:8090:80" in text
     assert "8090:5000" not in text
+
+
+def test_admin_dashboard_polls_upload_status(client):
+    login(client)
+    html = client.get("/admin/").get_data(as_text=True)
+    assert "/admin/upload/" in html
+    assert "status" in html
+    assert "처리 중" in html
+
+
+def test_nginx_buffers_upload_body():
+    conf = Path("deploy/nginx.conf").read_text(encoding="utf-8")
+    assert "proxy_request_buffering off" not in conf
 
 
 def test_service_worker_cache_bumped(client):
     js = client.get("/service-worker.js").get_data(as_text=True)
     assert "wecar-wpm-v1" not in js
-    assert "wecar-wpm-v2" in js
+    assert "wecar-wpm-v3" in js
 
 
 def test_admin_dashboard_upload_js_handles_gateway_errors(client):

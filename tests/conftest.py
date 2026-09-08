@@ -21,6 +21,7 @@ def app():
         # updating app.config afterwards has no effect on the already-bound engine.
         SQLALCHEMY_DATABASE_URI = f"sqlite:///{os.path.join(tmp, 'test.db')}"
         TESTING = True
+        UPLOAD_SYNC = True
         WTF_CSRF_ENABLED = False
         LOGIN_DISABLED = False
 
