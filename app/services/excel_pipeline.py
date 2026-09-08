@@ -2,13 +2,14 @@
 
 Sheet `경매전체데이터` → AuctionRecord (raw lake) → MarketSummary (grid aggregate).
 Sheet `시세표_테이블` (header row 5) → VehiclePriceTable (car-code reference).
+
+Memory: openpyxl read_only + N-row bulk_insert_mappings (no full DataFrame / ORM lists).
 """
-import json
 import logging
 import re
+from datetime import datetime, timezone
 
-import numpy as np
-import pandas as pd
+import openpyxl
 
 from app.extensions import db
 from app.models import AuctionRecord, MarketSummary, VehiclePriceTable
@@ -23,6 +24,7 @@ from app.services.mileage import calculate_mileage_bin
 RAW_SHEET = "경매전체데이터"
 logger = logging.getLogger(__name__)
 PRICE_SHEET = "시세표_테이블"
+BATCH_SIZE = 1000
 
 # 실데이터 컬럼명 기준. PRD의 제조사/모델명 별칭 허용.
 COLUMN_ALIASES = {
@@ -43,17 +45,29 @@ COLUMN_ALIASES = {
 }
 REQUIRED = ["auction_date", "maker", "car_name", "car_year", "car_km", "hammer_price", "imported"]
 
+GROUP_KEYS = [
+    "maker", "model_name", "mdetail_name", "grade_name", "gdetail_name",
+    "car_year", "fuel", "awd", "is_accident_free", "imported", "km_bin",
+]
+
 
 class ExcelValidationError(ValueError):
     pass
 
 
-def _resolve_columns(df):
+def _headers_of(df_or_headers):
+    if hasattr(df_or_headers, "columns"):
+        return [str(c).strip() for c in df_or_headers.columns]
+    return [str(c).strip() if c is not None else "" for c in df_or_headers]
+
+
+def _resolve_columns(df_or_headers):
     """Map logical field → actual column name present in the sheet."""
+    headers = _headers_of(df_or_headers)
     mapping = {}
     for field, aliases in COLUMN_ALIASES.items():
         for alias in aliases:
-            if alias in df.columns:
+            if alias in headers:
                 mapping[field] = alias
                 break
     missing = [f for f in REQUIRED if f not in mapping]
@@ -63,15 +77,26 @@ def _resolve_columns(df):
     return mapping
 
 
-def _find_col(df, needle):
-    for c in df.columns:
-        if needle in str(c):
-            return c
+def _find_header(headers, needle):
+    for h in headers:
+        if needle in str(h):
+            return h
     return None
 
 
+def _is_na(val):
+    if val is None:
+        return True
+    try:
+        if val != val:  # NaN
+            return True
+    except TypeError:
+        pass
+    return False
+
+
 def _to_int(val):
-    if val is None or (isinstance(val, float) and pd.isna(val)):
+    if _is_na(val):
         return None
     try:
         return int(float(re.sub(r"[^0-9.\-]", "", str(val)) or 0))
@@ -80,10 +105,8 @@ def _to_int(val):
 
 
 def _clean_str(val):
-    """pandas NaN / 'nan' / 공백 → None."""
-    if val is None:
-        return None
-    if isinstance(val, float) and pd.isna(val):
+    """NaN / 'nan' / 공백 → None."""
+    if _is_na(val):
         return None
     s = str(val).strip()
     if not s or s.lower() in ("nan", "none", "null", "-"):
@@ -96,162 +119,233 @@ def _clean_km(val):
     return i if i is not None else 0
 
 
-def validate_excel_schema(df):
-    _resolve_columns(df)
+def _cell(row, index_by_name, name):
+    if not name:
+        return None
+    i = index_by_name.get(name)
+    if i is None or i >= len(row):
+        return None
+    return row[i]
+
+
+def validate_excel_schema(df_or_headers):
+    _resolve_columns(df_or_headers)
     return True
 
 
-def parse_records(df, references, week_no):
-    cols = _resolve_columns(df)
-    xx_col = _find_col(df, "XX 교환")
-    w_col = _find_col(df, "W 판금")
-    records = []
-    for _, row in df.iterrows():
-        hammer = _to_int(row.get(cols["hammer_price"]))
-        # 시세는 낙찰가 기준 — 미낙찰(0/빈값) 제외
-        if hammer is None or hammer <= 0:
+def _utcnow():
+    return datetime.now(timezone.utc)
+
+
+def _expunge_ingest_instances():
+    """Drop identity-map rows from this ingest without detaching request User/History."""
+    from app.models import (
+        VehicleGrade, VehicleGradeDetail, VehicleMaker, VehicleModel, VehicleModelDetail,
+    )
+    kinds = (
+        AuctionRecord, VehiclePriceTable, MarketSummary,
+        VehicleMaker, VehicleModel, VehicleModelDetail, VehicleGrade, VehicleGradeDetail,
+    )
+    for obj in list(db.session.identity_map.values()):
+        if isinstance(obj, kinds):
+            db.session.expunge(obj)
+
+
+def _flush_mappings(model, batch):
+    if not batch:
+        return
+    db.session.bulk_insert_mappings(model, batch)
+    db.session.commit()
+    _expunge_ingest_instances()
+    batch.clear()
+
+
+def _row_to_auction_mapping(row, cols, index_by_name, week_no, xx_name, w_name):
+    hammer = _to_int(_cell(row, index_by_name, cols["hammer_price"]))
+    if hammer is None or hammer <= 0:
+        return None
+    maker = _clean_str(_cell(row, index_by_name, cols["maker"]))
+    kind = _clean_str(_cell(row, index_by_name, cols.get("kind"))) if cols.get("kind") else None
+    model_name = (
+        _clean_str(_cell(row, index_by_name, cols.get("model_name")))
+        if cols.get("model_name") else kind
+    )
+    car_name = _clean_str(_cell(row, index_by_name, cols["car_name"]))
+    fuel = normalize_fuel(
+        _cell(row, index_by_name, cols.get("fuel")) if cols.get("fuel") else None
+    )
+    imported = _clean_str(_cell(row, index_by_name, cols["imported"]))
+    car_year = _to_int(_cell(row, index_by_name, cols["car_year"]))
+    km = _clean_km(_cell(row, index_by_name, cols["car_km"]))
+    option = (
+        _clean_str(_cell(row, index_by_name, cols.get("car_option")))
+        if cols.get("car_option") else None
+    )
+    awd = normalize_awd(car_name, option, None)
+    acc_detail = (
+        _clean_str(_cell(row, index_by_name, cols.get("accident_detail")))
+        if cols.get("accident_detail") else None
+    )
+    xx = _cell(row, index_by_name, xx_name) if xx_name else None
+    w = _cell(row, index_by_name, w_name) if w_name else None
+    if _is_na(xx):
+        xx = None
+    if _is_na(w):
+        w = None
+    acc_free = is_accident_free(acc_detail, xx, w)
+
+    model = kind or model_name
+    mdetail = model_name or model
+    grade, gdetail = extract_grade_gdetail(
+        maker=maker, model=model, mdetail=mdetail, car_name=car_name,
+    )
+    hier = ensure_hierarchy(
+        maker=maker, model=model, mdetail=mdetail, grade=grade, gdetail=gdetail,
+    )
+    code = build_car_code(
+        maker=hier["maker"], model=hier["model"], mdetail=hier["mdetail"],
+        grade=hier["grade"], gdetail=hier["gdetail"],
+        car_year=car_year, fuel=fuel, awd=awd,
+        car_name=car_name, car_option=option, accident_free=acc_free,
+    )
+    return {
+        "week_no": week_no,
+        "auction_date": _clean_str(_cell(row, index_by_name, cols["auction_date"])),
+        "maker": hier["maker"],
+        "model_name": hier["model"],
+        "mdetail_name": hier["mdetail"],
+        "grade_name": hier["grade"],
+        "gdetail_name": hier["gdetail"],
+        "car_name": car_name,
+        "car_year": car_year,
+        "car_km": km,
+        "fuel": fuel,
+        "awd": awd,
+        "imported": imported,
+        "start_price": (
+            _to_int(_cell(row, index_by_name, cols.get("start_price")))
+            if cols.get("start_price") else None
+        ),
+        "hope_price": (
+            _to_int(_cell(row, index_by_name, cols.get("hope_price")))
+            if cols.get("hope_price") else None
+        ),
+        "hammer_price": hammer,
+        "accident_detail": acc_detail,
+        "xx_exchange": _clean_str(xx) if xx is not None else None,
+        "w_panel": _clean_str(w) if w is not None else None,
+        "is_accident_free": acc_free,
+        "maker_no": hier["maker_no"],
+        "model_no": hier["model_no"],
+        "mdetail_no": hier["mdetail_no"],
+        "grade_no": hier["grade_no"],
+        "gdetail_no": hier["gdetail_no"],
+        "car_code": code,
+        "km_bin": calculate_mileage_bin(km),
+        "created_at": _utcnow(),
+    }
+
+
+def _ingest_raw_sheet(ws, week_no):
+    rows = ws.iter_rows(values_only=True)
+    try:
+        header_row = next(rows)
+    except StopIteration:
+        raise ExcelValidationError(f"시트 '{RAW_SHEET}' 가 비어 있습니다.")
+    headers = _headers_of(header_row)
+    cols = _resolve_columns(headers)
+    index_by_name = {name: i for i, name in enumerate(headers)}
+    xx_name = _find_header(headers, "XX 교환")
+    w_name = _find_header(headers, "W 판금")
+
+    batch = []
+    inserted = 0
+    for row in rows:
+        mapping = _row_to_auction_mapping(
+            row, cols, index_by_name, week_no, xx_name, w_name,
+        )
+        if mapping is None:
             continue
-        maker = _clean_str(row.get(cols["maker"]))
-        kind = _clean_str(row.get(cols["kind"])) if cols.get("kind") else None
-        model_name = _clean_str(row.get(cols["model_name"])) if cols.get("model_name") else kind
-        car_name = _clean_str(row.get(cols["car_name"]))
-        fuel = normalize_fuel(row.get(cols["fuel"]) if cols.get("fuel") else None)
-        imported = _clean_str(row.get(cols["imported"]))
-        car_year = _to_int(row.get(cols["car_year"]))
-        km = _clean_km(row.get(cols["car_km"]))
-        option = _clean_str(row.get(cols["car_option"])) if cols.get("car_option") else None
-        awd = normalize_awd(car_name, option, None)
-        acc_detail = _clean_str(row.get(cols.get("accident_detail"))) if cols.get("accident_detail") else None
-        xx = row.get(xx_col) if xx_col else None
-        w = row.get(w_col) if w_col else None
-        if isinstance(xx, float) and pd.isna(xx):
-            xx = None
-        if isinstance(w, float) and pd.isna(w):
-            w = None
-        acc_free = is_accident_free(acc_detail, xx, w)
-
-        # 계층 컬럼 분리 저장: 제조사·모델(차종)·세부모델(모델명)·등급·세부등급
-        model = kind or model_name
-        mdetail = model_name or model
-        grade, gdetail = extract_grade_gdetail(
-            maker=maker, model=model, mdetail=mdetail, car_name=car_name,
-        )
-        hier = ensure_hierarchy(
-            maker=maker, model=model, mdetail=mdetail, grade=grade, gdetail=gdetail,
-        )
-        code = build_car_code(
-            maker=hier["maker"], model=hier["model"], mdetail=hier["mdetail"],
-            grade=hier["grade"], gdetail=hier["gdetail"],
-            car_year=car_year, fuel=fuel, awd=awd,
-            car_name=car_name, car_option=option, accident_free=acc_free,
-        )
-        rec = AuctionRecord(
-            week_no=week_no,
-            auction_date=_clean_str(row.get(cols["auction_date"])),
-            maker=hier["maker"],
-            model_name=hier["model"],
-            mdetail_name=hier["mdetail"],
-            grade_name=hier["grade"],
-            gdetail_name=hier["gdetail"],
-            car_name=car_name,
-            car_year=car_year,
-            car_km=km,
-            fuel=fuel,
-            awd=awd,
-            imported=imported,
-            start_price=_to_int(row.get(cols["start_price"])) if cols.get("start_price") else None,
-            hope_price=_to_int(row.get(cols["hope_price"])) if cols.get("hope_price") else None,
-            hammer_price=hammer,
-            accident_detail=acc_detail,
-            xx_exchange=_clean_str(xx) if xx is not None else None,
-            w_panel=_clean_str(w) if w is not None else None,
-            is_accident_free=acc_free,
-            maker_no=hier["maker_no"],
-            model_no=hier["model_no"],
-            mdetail_no=hier["mdetail_no"],
-            grade_no=hier["grade_no"],
-            gdetail_no=hier["gdetail_no"],
-            car_code=code,
-            km_bin=calculate_mileage_bin(km),
-        )
-        records.append(rec)
-    db.session.flush()
-    return records
+        batch.append(mapping)
+        if len(batch) >= BATCH_SIZE:
+            inserted += len(batch)
+            _flush_mappings(AuctionRecord, batch)
+    if batch:
+        inserted += len(batch)
+        _flush_mappings(AuctionRecord, batch)
+    return inserted
 
 
-def load_price_table(xls):
-    """시세표_테이블 header at row 5 → long-form VehiclePriceTable rows."""
-    if PRICE_SHEET not in xls.sheet_names:
-        return []
-    raw = pd.read_excel(xls, sheet_name=PRICE_SHEET, header=4)
-    raw = raw.rename(columns=lambda c: str(c).strip())
-    name_col = next((c for c in raw.columns if "차명" in c), None)
-    if name_col is None:
-        return []
-    fuel_col = next((c for c in raw.columns if "연료" in c), None)
-    imp_col = next((c for c in raw.columns if "내수" in c or "수출" in c), None)
-    year_cols = [c for c in raw.columns if re.fullmatch(r"20\d{2}", str(c))]
-    rows = []
-    for _, r in raw.iterrows():
-        name = r.get(name_col)
-        if name is None or (isinstance(name, float) and pd.isna(name)):
+def _ingest_price_sheet(ws):
+    """시세표_테이블 header at row 5 → VehiclePriceTable via bulk mappings."""
+    it = ws.iter_rows(values_only=True)
+    headers = None
+    name_col = fuel_col = imp_col = None
+    year_cols = []
+    index_by_name = {}
+    batch = []
+    inserted = 0
+    for i, row in enumerate(it, start=1):
+        if i < 5:
             continue
+        if i == 5:
+            headers = _headers_of(row)
+            name_col = next((c for c in headers if "차명" in c), None)
+            if name_col is None:
+                return 0
+            fuel_col = next((c for c in headers if "연료" in c), None)
+            imp_col = next((c for c in headers if "내수" in c or "수출" in c), None)
+            year_cols = [c for c in headers if re.fullmatch(r"20\d{2}", str(c))]
+            index_by_name = {name: j for j, name in enumerate(headers)}
+            continue
+        name = _cell(row, index_by_name, name_col)
+        if _is_na(name) or not str(name).strip():
+            continue
+        car_name = str(name).strip()
+        fuel = _clean_str(_cell(row, index_by_name, fuel_col)) if fuel_col else None
+        imported = _clean_str(_cell(row, index_by_name, imp_col)) if imp_col else None
         for yc in year_cols:
-            price = _to_int(r.get(yc))
+            price = _to_int(_cell(row, index_by_name, yc))
             if price is None or price == 0:
                 continue
-            rows.append(VehiclePriceTable(
-                car_name=str(name).strip(),
-                fuel=str(r.get(fuel_col)).strip() if fuel_col else None,
-                imported=str(r.get(imp_col)).strip() if imp_col else None,
-                car_year=int(yc),
-                avg_price=price,
-            ))
-    return rows
+            batch.append({
+                "car_name": car_name,
+                "fuel": fuel,
+                "imported": imported,
+                "car_year": int(yc),
+                "avg_price": price,
+            })
+            if len(batch) >= BATCH_SIZE:
+                inserted += len(batch)
+                _flush_mappings(VehiclePriceTable, batch)
+    if batch:
+        inserted += len(batch)
+        _flush_mappings(VehiclePriceTable, batch)
+    return inserted
 
 
 def rebuild_market_summary(week_no):
-    """Aggregate AuctionRecord into MarketSummary — 낙찰가 기준 · 전주대비(%)."""
+    """Aggregate AuctionRecord into MarketSummary — 낙찰가 기준 · 전주대비(%). SQL GROUP BY."""
     if not is_active("aggregate.market_summary"):
         logger.info("rebuild_market_summary skipped: aggregate.market_summary inactive")
         return 0
     db.session.execute(db.delete(MarketSummary))
-    records = db.session.execute(
-        db.select(AuctionRecord).where(
-            AuctionRecord.hammer_price.isnot(None),
-            AuctionRecord.hammer_price > 0,
+    db.session.commit()
+
+    hammer_ok = (
+        AuctionRecord.hammer_price.isnot(None),
+        AuctionRecord.hammer_price > 0,
+    )
+    weeks_sorted = sorted(
+        w for (w,) in db.session.execute(
+            db.select(AuctionRecord.week_no).where(*hammer_ok).distinct()
         )
-    ).scalars().all()
-    if not records:
-        db.session.commit()
+        if w is not None
+    )
+    if not weeks_sorted:
         return 0
 
-    df = pd.DataFrame([{
-        "car_code": r.car_code, "maker": r.maker, "model_name": r.model_name,
-        "mdetail_name": r.mdetail_name, "grade_name": r.grade_name,
-        "gdetail_name": r.gdetail_name, "car_name": r.car_name,
-        "car_year": r.car_year, "fuel": r.fuel, "awd": r.awd,
-        "imported": r.imported, "is_accident_free": r.is_accident_free,
-        "km_bin": r.km_bin, "start_price": r.start_price,
-        "hammer_price": r.hammer_price, "week_no": r.week_no,
-    } for r in records])
-
-    # 차원 컬럼으로 집계 (car_code는 대표 해시만 보관)
-    group_keys = [
-        "maker", "model_name", "mdetail_name", "grade_name", "gdetail_name",
-        "car_year", "fuel", "awd", "is_accident_free", "imported", "km_bin",
-    ]
-    weekly = df.groupby(group_keys + ["week_no"], dropna=False).agg(
-        hammer_avg=("hammer_price", "mean"),
-        start_avg=("start_price", "mean"),
-        sample_count=("hammer_price", "count"),
-        car_code=("car_code", "first"),
-        car_name=("car_name", "first"),
-    ).reset_index()
-
-    weeks_sorted = sorted([w for w in df["week_no"].dropna().unique()])
-    current_week = week_no if week_no in set(weeks_sorted) else (
-        weeks_sorted[-1] if weeks_sorted else week_no)
+    current_week = week_no if week_no in set(weeks_sorted) else weeks_sorted[-1]
     prev_week = None
     if current_week in weeks_sorted:
         idx = weeks_sorted.index(current_week)
@@ -261,44 +355,75 @@ def rebuild_market_summary(week_no):
         current_week = weeks_sorted[-1]
         prev_week = weeks_sorted[-2]
 
-    cur_df = weekly[weekly["week_no"] == current_week]
+    group_cols = [getattr(AuctionRecord, k) for k in GROUP_KEYS]
+
+    def _agg_stmt(for_week):
+        return (
+            db.select(
+                *group_cols,
+                db.func.avg(AuctionRecord.hammer_price).label("hammer_avg"),
+                db.func.avg(AuctionRecord.start_price).label("start_avg"),
+                db.func.count(AuctionRecord.hammer_price).label("sample_count"),
+                db.func.min(AuctionRecord.car_code).label("car_code"),
+                db.func.min(AuctionRecord.car_name).label("car_name"),
+            )
+            .where(*hammer_ok, AuctionRecord.week_no == for_week)
+            .group_by(*group_cols)
+        )
+
     prev_lookup = {}
     if prev_week is not None:
-        pw = weekly[weekly["week_no"] == prev_week]
-        for _, row in pw.iterrows():
-            prev_lookup[tuple(row[k] for k in group_keys)] = row["hammer_avg"]
+        for row in db.session.execute(_agg_stmt(prev_week)).yield_per(BATCH_SIZE):
+            m = row._mapping
+            prev_lookup[tuple(m[k] for k in GROUP_KEYS)] = m["hammer_avg"]
 
+    note = f"주간 집계 완료 ({current_week})"
+    if prev_week:
+        note += f" · 전주대비 기준 {prev_week}"
+
+    batch = []
     count = 0
-    for _, row in cur_df.iterrows():
-        key = tuple(row[k] for k in group_keys)
+    for row in db.session.execute(_agg_stmt(current_week)).yield_per(BATCH_SIZE):
+        m = row._mapping
+        key = tuple(m[k] for k in GROUP_KEYS)
         prev = prev_lookup.get(key)
-        cur = row["hammer_avg"]
-        # mom_pct 컬럼에 전주대비(%) 저장 (스키마 유지)
+        cur = m["hammer_avg"]
         wow = None
         if prev and prev != 0:
             wow = round((cur - prev) / prev * 100, 2)
-        note = f"주간 집계 완료 ({current_week})"
-        if prev_week:
-            note += f" · 전주대비 기준 {prev_week}"
-        db.session.add(MarketSummary(
-            car_code=row["car_code"], maker=row["maker"], model_name=row["model_name"],
-            mdetail_name=row["mdetail_name"], grade_name=row["grade_name"],
-            gdetail_name=row["gdetail_name"], car_name=row["car_name"],
-            car_year=_safe_int(row["car_year"]), fuel=row["fuel"], awd=row["awd"],
-            imported=row["imported"], is_accident_free=bool(row["is_accident_free"]),
-            km_bin=row["km_bin"],
-            start_avg=_safe_float(row["start_avg"]), hammer_avg=_safe_float(cur),
-            mom_pct=wow, sample_count=int(row["sample_count"]), week_no=current_week,
-            note=note,
-        ))
-        count += 1
-    db.session.commit()
+        batch.append({
+            "car_code": m["car_code"],
+            "maker": m["maker"],
+            "model_name": m["model_name"],
+            "mdetail_name": m["mdetail_name"],
+            "grade_name": m["grade_name"],
+            "gdetail_name": m["gdetail_name"],
+            "car_name": m["car_name"],
+            "car_year": _safe_int(m["car_year"]),
+            "fuel": m["fuel"],
+            "awd": m["awd"],
+            "imported": m["imported"],
+            "is_accident_free": bool(m["is_accident_free"]),
+            "km_bin": m["km_bin"],
+            "start_avg": _safe_float(m["start_avg"]),
+            "hammer_avg": _safe_float(cur),
+            "mom_pct": wow,
+            "sample_count": int(m["sample_count"]),
+            "week_no": current_week,
+            "note": note,
+        })
+        if len(batch) >= BATCH_SIZE:
+            count += len(batch)
+            _flush_mappings(MarketSummary, batch)
+    if batch:
+        count += len(batch)
+        _flush_mappings(MarketSummary, batch)
     return count
 
 
 def _safe_int(v):
     try:
-        if v is None or (isinstance(v, float) and np.isnan(v)):
+        if _is_na(v):
             return None
         return int(v)
     except (TypeError, ValueError):
@@ -307,7 +432,7 @@ def _safe_int(v):
 
 def _safe_float(v):
     try:
-        if v is None or (isinstance(v, float) and np.isnan(v)):
+        if _is_na(v):
             return None
         return round(float(v), 2)
     except (TypeError, ValueError):
@@ -316,38 +441,31 @@ def _safe_float(v):
 
 def process_weekly_upload(file_path, week_no, mode="append"):
     """Returns dict(rows_ok, records, summaries). Raises ExcelValidationError."""
-    xls = pd.ExcelFile(file_path)
-    if RAW_SHEET not in xls.sheet_names:
-        raise ExcelValidationError(f"시트 '{RAW_SHEET}' 가 없습니다.")
-    df = pd.read_excel(xls, sheet_name=RAW_SHEET)
-    df = df.rename(columns=lambda c: str(c).strip())
-    validate_excel_schema(df)
+    wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+    try:
+        if RAW_SHEET not in wb.sheetnames:
+            raise ExcelValidationError(f"시트 '{RAW_SHEET}' 가 없습니다.")
 
-    if mode == "reset":
-        db.session.execute(db.delete(AuctionRecord))
-        db.session.execute(db.delete(VehiclePriceTable))
-        db.session.commit()
-    elif mode == "overwrite":
-        db.session.execute(db.delete(AuctionRecord).where(AuctionRecord.week_no == week_no))
-        db.session.commit()
+        if mode == "reset":
+            db.session.execute(db.delete(AuctionRecord))
+            db.session.execute(db.delete(VehiclePriceTable))
+            db.session.commit()
+        elif mode == "overwrite":
+            db.session.execute(db.delete(AuctionRecord).where(AuctionRecord.week_no == week_no))
+            db.session.commit()
 
-    price_rows = load_price_table(xls)
-    if price_rows and mode in ("reset", "overwrite"):
-        db.session.execute(db.delete(VehiclePriceTable))
-    if price_rows:
-        db.session.add_all(price_rows)
-        db.session.commit()
+        if PRICE_SHEET in wb.sheetnames:
+            if mode in ("reset", "overwrite"):
+                db.session.execute(db.delete(VehiclePriceTable))
+                db.session.commit()
+            _ingest_price_sheet(wb[PRICE_SHEET])
 
-    references = [
-        {"car_name": r.car_name, "fuel": r.fuel, "imported": r.imported}
-        for r in db.session.execute(db.select(VehiclePriceTable)).scalars().all()
-    ]
-    records = parse_records(df, references, week_no)
-    db.session.add_all(records)
-    db.session.commit()
-
-    summaries = rebuild_market_summary(week_no)
-    return {"rows_ok": len(records), "records": len(records), "summaries": summaries}
+        # Price-table 24만 행 ORM 로드는 하지 않음. parse 경로가 references를 쓰지 않음.
+        n = _ingest_raw_sheet(wb[RAW_SHEET], week_no)
+        summaries = rebuild_market_summary(week_no)
+        return {"rows_ok": n, "records": n, "summaries": summaries}
+    finally:
+        wb.close()
 
 
 def clear_all_auction_data(clear_history=True):
@@ -386,7 +504,6 @@ def delete_upload_by_history(history_id):
     n = (db.session.execute(db.delete(AuctionRecord).where(AuctionRecord.week_no == week_no)).rowcount or 0) if week_no else 0
     db.session.delete(hist)
     db.session.commit()
-    # 남은 데이터 기준 재집계
     remaining = db.session.execute(db.select(AuctionRecord).order_by(AuctionRecord.id.desc())).scalars().first()
     summaries = rebuild_market_summary(remaining.week_no if remaining else week_no)
     return {

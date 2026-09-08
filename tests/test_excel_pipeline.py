@@ -61,3 +61,57 @@ def test_missing_column_rejected(app, db, tmp_path):
     wb.save(p)
     with pytest.raises(ExcelValidationError):
         process_weekly_upload(p, week_no="2026-W29", mode="append")
+
+
+def test_upload_does_not_load_sheets_via_pandas(app, db, mini, monkeypatch):
+    """xlsx는 chunksize가 없어 pandas 전체 로드를 쓰면 OOM 난다."""
+    def boom(*_a, **_k):
+        raise AssertionError("pd.read_excel / ExcelFile must not load whole sheets")
+
+    import pandas as pd
+
+    monkeypatch.setattr(pd, "read_excel", boom)
+    monkeypatch.setattr(pd, "ExcelFile", boom)
+    result = process_weekly_upload(mini, week_no="2026-W29", mode="append")
+    assert result["rows_ok"] == 3
+    assert db.session.scalar(db.select(db.func.count()).select_from(AuctionRecord)) == 3
+    assert db.session.scalar(db.select(db.func.count()).select_from(VehiclePriceTable)) >= 1
+
+
+def test_upload_uses_bulk_insert_not_orm_record_list(app, db, mini, monkeypatch):
+    """배치 bulk_insert_mappings — AuctionRecord 인스턴스 전량 상주 금지."""
+    orig = AuctionRecord.__init__
+    n = {"orm": 0}
+
+    def wrapped(self, *a, **k):
+        n["orm"] += 1
+        return orig(self, *a, **k)
+
+    monkeypatch.setattr(AuctionRecord, "__init__", wrapped)
+    batches = []
+    real_bulk = db.session.bulk_insert_mappings
+
+    def spy(mapper, mappings, **kwargs):
+        batches.append(len(list(mappings)))
+        return real_bulk(mapper, mappings, **kwargs)
+
+    monkeypatch.setattr(db.session, "bulk_insert_mappings", spy)
+    result = process_weekly_upload(mini, week_no="2026-W29", mode="append")
+    assert result["rows_ok"] == 3
+    assert n["orm"] == 0
+    assert sum(batches) >= 3
+
+
+def test_upload_does_not_construct_price_orm_rows(app, db, mini, monkeypatch):
+    """시세표도 ORM 객체 리스트가 아니라 bulk mapping 으로만 적재한다."""
+    orig = VehiclePriceTable.__init__
+    n = {"orm": 0}
+
+    def wrapped(self, *a, **k):
+        n["orm"] += 1
+        return orig(self, *a, **k)
+
+    monkeypatch.setattr(VehiclePriceTable, "__init__", wrapped)
+    process_weekly_upload(mini, week_no="2026-W29", mode="append")
+    assert n["orm"] == 0
+    assert db.session.scalar(db.select(db.func.count()).select_from(VehiclePriceTable)) >= 1
