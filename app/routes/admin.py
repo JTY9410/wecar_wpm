@@ -1,5 +1,6 @@
 import os
 import re
+import threading
 import uuid
 import json
 from datetime import date, datetime
@@ -39,6 +40,26 @@ from app.services.sync_engine import sync_listings
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 ALLOWED_EXT = {".xlsx", ".xls"}
+
+
+def _train_models_async(app, week_no):
+    """Heavy fit after ingest — keep it off the upload response to avoid proxy 502."""
+    with app.app_context():
+        try:
+            PriceModel().train()
+        except Exception:
+            app.logger.exception("price model train after upload failed")
+        try:
+            HedonicModel().train()
+        except Exception:
+            app.logger.exception("hedonic model train after upload failed")
+        try:
+            records = db.session.execute(
+                db.select(AuctionRecord).where(AuctionRecord.week_no == week_no)
+            ).scalars().all()
+            rag_store.embed_records(records)
+        except Exception:
+            app.logger.exception("rag embed after upload failed")
 
 
 @admin_bp.route("/")
@@ -119,33 +140,16 @@ def upload():
                            records_processed=result["rows_ok"]))
     db.session.commit()
 
-    try:
-        result["train"] = PriceModel().train()
-    except Exception as exc:
-        current_app.logger.exception("price model train after upload failed")
-        result["train"] = {"trained": False, "reason": str(exc)}
-    try:
-        result["hedonic"] = HedonicModel().train()
-    except Exception as exc:
-        current_app.logger.exception("hedonic model train after upload failed")
-        result["hedonic"] = {"trained": False, "reason": str(exc)}
-    try:
-        rag_status = rag_store.embed_records(
-            db.session.execute(db.select(AuctionRecord).where(AuctionRecord.week_no == week_no)).scalars().all()
-        )
-        result["rag"] = rag_status.get("status")
-    except Exception as exc:
-        current_app.logger.exception("rag embed after upload failed")
-        result["rag"] = f"SKIP ({exc})"
-    train = result.get("train") or {}
-    hedonic = result.get("hedonic") or {}
+    threading.Thread(
+        target=_train_models_async,
+        args=(current_app._get_current_object(), week_no),
+        daemon=True,
+        name="upload-train",
+    ).start()
     message = (
         f"업로드 완료: {result['rows_ok']}행 · 시세 {result['summaries']}건 · "
-        f"학습 {'성공' if train.get('trained') else 'SKIP'} · "
-        f"헤도닉 {'성공' if hedonic.get('trained') else 'SKIP'}"
+        f"모델 학습은 백그라운드에서 진행됩니다"
     )
-    if result.get("rag") and result["rag"] != "OK":
-        message += f" · RAG {result['rag']}"
     return jsonify({"ok": True, "message": message, **result})
 
 

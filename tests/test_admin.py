@@ -1,5 +1,8 @@
 import io
 import re
+import threading
+import time
+from pathlib import Path
 from unittest.mock import patch
 
 from sqlalchemy import text
@@ -95,6 +98,47 @@ def test_anonymous_upload_returns_json_401(client):
 def test_sqlite_uses_wal(app):
     mode = db.session.execute(text("PRAGMA journal_mode")).scalar()
     assert str(mode).lower() == "wal"
+
+
+def test_admin_upload_returns_without_waiting_for_train(app, client, tmp_path):
+    """Ingest JSON must return even if model training blocks (avoids proxy 502)."""
+    release = threading.Event()
+
+    def hang_train(_self=None):
+        release.wait(timeout=8)
+        return {"trained": True, "count": 0}
+
+    login(client)
+    path = build(str(tmp_path / "u.xlsx"))
+    t0 = time.monotonic()
+    with patch("app.routes.admin.PriceModel") as pm, patch("app.routes.admin.HedonicModel") as hm:
+        pm.return_value.train.side_effect = hang_train
+        hm.return_value.train.side_effect = hang_train
+        with open(path, "rb") as fh:
+            data = {"file": (io.BytesIO(fh.read()), "20260715_data.xlsx"),
+                    "mode": "reset", "week_no": ""}
+            resp = client.post("/admin/upload", data=data,
+                               content_type="multipart/form-data")
+    elapsed = time.monotonic() - t0
+    release.set()
+    body = resp.get_json()
+    assert resp.status_code == 200
+    assert body["ok"] is True
+    assert body["rows_ok"] == 3
+    assert elapsed < 3
+
+
+def test_compose_publishes_nginx_proxy():
+    text = Path("docker-compose.yml").read_text(encoding="utf-8")
+    assert "nginx:" in text
+    assert "8090:80" in text
+    assert "8090:5000" not in text
+
+
+def test_service_worker_cache_bumped(client):
+    js = client.get("/service-worker.js").get_data(as_text=True)
+    assert "wecar-wpm-v1" not in js
+    assert "wecar-wpm-v2" in js
 
 
 def test_admin_dashboard_upload_js_handles_gateway_errors(client):

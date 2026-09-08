@@ -6,14 +6,28 @@
 name: wecarwpm_hedonic
 
 services:
+  proxy:
+    image: nginx:1.26-alpine
+    container_name: wecarwpm-hedonic-proxy
+    ports:
+      - "8091:80"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      web:
+        condition: service_healthy
+    networks:
+      - wecarwpm_hedonic_net
+    restart: unless-stopped
+
   web:
     build:
       context: .
       dockerfile: Dockerfile.hedonic
     image: ghcr.io/jty9410/wecar_wpm-hedonic:latest
     container_name: wecarwpm-hedonic-web
-    ports:
-      - "8091:5000"
+    expose:
+      - "5000"
     env_file:
       - .env
     environment:
@@ -25,6 +39,7 @@ services:
       MODEL_PATH: ./instance/car_price_model.pkl
       APP_NAME: 도매시세분석(Hedonic)
       BRAND_MARK: WPM-H
+      TRUST_PROXY: "1"
     volumes:
       - ./instance-hedonic:/app/instance
     networks:
