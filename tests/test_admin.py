@@ -2,6 +2,8 @@ import io
 import re
 from unittest.mock import patch
 
+from sqlalchemy import text
+
 from app.extensions import db
 from app.models import AuctionRecord, UploadHistory
 from tests.conftest import login
@@ -78,6 +80,28 @@ def test_analysis_logic_page_requires_admin(client):
     r = client.get("/admin/analysis-logic")
     assert r.status_code == 200
     assert b"analysis-logic" in r.data or "분석".encode() in r.data or b"pipeline" in r.data.lower()
+
+
+def test_anonymous_upload_returns_json_401(client):
+    """fetch('/admin/upload') must get JSON 401, not an HTML login redirect."""
+    resp = client.post("/admin/upload")
+    assert resp.status_code == 401
+    body = resp.get_json()
+    assert body is not None
+    assert body.get("ok") is False
+    assert "인증" in (body.get("error") or "")
+
+
+def test_sqlite_uses_wal(app):
+    mode = db.session.execute(text("PRAGMA journal_mode")).scalar()
+    assert str(mode).lower() == "wal"
+
+
+def test_admin_dashboard_upload_js_handles_gateway_errors(client):
+    login(client)
+    html = client.get("/admin/").get_data(as_text=True)
+    assert "redirect: 'manual'" in html
+    assert "서버가 업로드를 처리하지 못했습니다" in html
 
 
 def test_user_cannot_upload(app, client):

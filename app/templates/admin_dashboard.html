@@ -201,11 +201,24 @@ document.getElementById('upBtn').onclick = async () => {
   fd.append('week_no', document.getElementById('week').value);
   document.getElementById('upOut').textContent = '처리 중…';
   try {
-    const r = await fetch('/admin/upload', {method:'POST', body:fd});
+    const r = await fetch('/admin/upload', {
+      method: 'POST',
+      body: fd,
+      credentials: 'same-origin',
+      redirect: 'manual',
+    });
+    if (r.type === 'opaqueredirect' || (r.status >= 301 && r.status <= 308 && r.status !== 304)) {
+      const msg = '로그인이 만료되었습니다. 다시 로그인해 주세요.';
+      document.getElementById('upOut').textContent = msg;
+      toast(msg, 'danger');
+      return;
+    }
     const text = await r.text();
     let d;
     try { d = JSON.parse(text); } catch (e) {
-      const msg = '서버 응답 오류 (' + r.status + ')';
+      const msg = (r.status === 502 || r.status === 504)
+        ? '서버가 업로드를 처리하지 못했습니다. 잠시 후 다시 시도해 주세요. (' + r.status + ')'
+        : '서버 응답 오류 (' + r.status + ')';
       document.getElementById('upOut').textContent = msg;
       toast(msg, 'danger');
       return;

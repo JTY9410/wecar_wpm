@@ -35,6 +35,11 @@ class Config:
     else:
         SQLALCHEMY_DATABASE_URI = DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_pre_ping": True,
+        **({"connect_args": {"timeout": 30, "check_same_thread": False}} if SQLALCHEMY_DATABASE_URI.startswith("sqlite") else {}),
+    }
+    MAX_CONTENT_LENGTH = int(os.getenv("MAX_CONTENT_LENGTH", str(100 * 1024 * 1024)))
 
     IMAGE_STORAGE_PATH = _abs(os.getenv("IMAGE_STORAGE_PATH", "./instance/storage/car_images"))
     EXCEL_UPLOAD_PATH = _abs(os.getenv("EXCEL_UPLOAD_PATH", "./instance/storage/excel_uploads"))

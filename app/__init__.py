@@ -2,10 +2,34 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, session, url_for
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
+from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from config import Config
 from app.extensions import csrf, db, login_manager, migrate
+
+_SQLITE_PRAGMA_REGISTERED = False
+
+
+def _register_sqlite_pragmas():
+    """WAL + busy_timeout so 2 gunicorn workers + scheduler don't lock-hang."""
+    global _SQLITE_PRAGMA_REGISTERED
+    if _SQLITE_PRAGMA_REGISTERED:
+        return
+
+    @event.listens_for(Engine, "connect")
+    def _sqlite_pragmas(dbapi_connection, _connection_record):
+        import sqlite3
+        if not isinstance(dbapi_connection, sqlite3.Connection):
+            return
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=30000")
+        cursor.close()
+
+    _SQLITE_PRAGMA_REGISTERED = True
 
 
 def _safe_local_redirect(target: str, fallback: str) -> str:
@@ -31,6 +55,16 @@ def create_app(config_class=Config):
     migrate.init_app(app, db)
     login_manager.init_app(app)
     csrf.init_app(app)
+    _register_sqlite_pragmas()
+
+    @login_manager.unauthorized_handler
+    def _unauthorized():
+        # fetch() POSTs expect JSON; an HTML 302 is parsed as "서버 응답 오류".
+        if request.path.startswith("/api") or (
+            request.path.startswith("/admin") and request.method != "GET"
+        ):
+            return jsonify({"ok": False, "error": "인증이 필요합니다."}), 401
+        return redirect(url_for("auth.login", next=request.path))
 
     from app import models  # noqa: F401  (register models)
     from app.services.i18n_translate import load_pack
@@ -148,6 +182,21 @@ def create_app(config_class=Config):
     def not_found(_e):
         return render_template("error.html", code=404,
                                message="페이지를 찾을 수 없습니다."), 404
+
+    @app.errorhandler(413)
+    @app.errorhandler(RequestEntityTooLarge)
+    def too_large(_e):
+        if request.path.startswith("/admin") and request.method != "GET":
+            return jsonify({"ok": False, "error": "파일이 너무 큽니다. 100MB 이하만 업로드할 수 있습니다."}), 413
+        return render_template("error.html", code=413,
+                               message="파일이 너무 큽니다."), 413
+
+    @app.errorhandler(500)
+    def internal(_e):
+        if request.path.startswith("/admin") and request.method != "GET":
+            return jsonify({"ok": False, "error": "서버 내부 오류가 발생했습니다."}), 500
+        return render_template("error.html", code=500,
+                               message="서버 내부 오류가 발생했습니다."), 500
 
     @app.cli.command("seed-admin")
     def seed_admin_cmd():
