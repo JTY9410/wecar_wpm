@@ -43,6 +43,9 @@ ALLOWED_EXT = {".xlsx", ".xls"}
 
 
 def _train_models(week_no):
+    from app.services.training import training_allowed
+    if not training_allowed():
+        return
     try:
         PriceModel().train()
     except Exception:
@@ -271,8 +274,13 @@ def upload_delete(history_id):
 def sync():
     result = sync_listings(with_images=request.form.get("images") == "1")
     if result.get("status") == "SUCCESS":
-        result["train"] = PriceModel().train()
-        result["hedonic"] = HedonicModel().train()
+        from app.services.training import training_allowed
+        if training_allowed():
+            result["train"] = PriceModel().train()
+            result["hedonic"] = HedonicModel().train()
+        else:
+            result["train"] = {"trained": False, "reason": "serving_only"}
+            result["hedonic"] = {"trained": False, "reason": "serving_only"}
     return jsonify(result)
 
 
@@ -280,9 +288,17 @@ def sync():
 @login_required
 @admin_required
 def retrain():
+    from app.services.training import training_allowed
+    if not training_allowed():
+        return jsonify({
+            "ok": True,
+            "trained": False,
+            "reason": "serving_only",
+            "message": "웹 배포에서는 학습하지 않습니다. 로컬에서 학습한 모델만 서빙합니다.",
+        })
     rf = PriceModel().train()
     hedonic = HedonicModel().train()
-    return jsonify({"ok": True, "train": rf, "hedonic": hedonic})
+    return jsonify({"ok": True, "trained": True, "train": rf, "hedonic": hedonic})
 
 
 @admin_bp.route("/llm", methods=["POST"])

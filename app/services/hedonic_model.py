@@ -78,6 +78,9 @@ class HedonicModel:
         return names
 
     def train(self):
+        from app.services.training import training_allowed
+        if not training_allowed():
+            return {"trained": False, "reason": "serving_only"}
         if not is_active("predict.hedonic"):
             return {"trained": False, "reason": "inactive"}
         from app.extensions import db

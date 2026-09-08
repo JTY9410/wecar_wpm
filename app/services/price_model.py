@@ -35,6 +35,9 @@ class PriceModel:
         return df[FEATURES].to_numpy()
 
     def train(self):
+        from app.services.training import training_allowed
+        if not training_allowed():
+            return {"trained": False, "reason": "serving_only"}
         if not is_active("predict.random_forest"):
             return {"trained": False, "reason": "inactive"}
         from sklearn.ensemble import RandomForestRegressor

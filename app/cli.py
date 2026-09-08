@@ -31,3 +31,19 @@ def sync_listings_cmd(with_images: bool, batch_size: int | None) -> None:
 
     click.echo(f"Sync FAILED: {result.get('error')}", err=True)
     raise SystemExit(1)
+
+
+@click.command("train-models")
+@with_appcontext
+def train_models_cmd() -> None:
+    """Fit RF/hedonic locally and write instance/*.pkl for the web to serve."""
+    from app.services.training import training_allowed
+    from app.services.price_model import PriceModel
+    from app.services.hedonic_model import HedonicModel
+
+    if not training_allowed():
+        click.echo("ENABLE_TRAINING=0 — refusing to train on a serve-only process.", err=True)
+        raise SystemExit(1)
+    rf = PriceModel().train()
+    hedonic = HedonicModel().train()
+    click.echo(f"train={rf} hedonic={hedonic}")

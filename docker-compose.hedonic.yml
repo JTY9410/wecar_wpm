@@ -33,6 +33,7 @@ services:
     environment:
       DATABASE_URL: sqlite:///instance/wecarcar1_auto.db
       ENABLE_SCHEDULER: "0"
+      ENABLE_TRAINING: "0"
       SYNC_BATCH_SIZE: "500"
       INTEGRATION_MODE: "standalone"
       HEDONIC_MODEL_PATH: ./instance/hedonic_model.pkl
@@ -66,6 +67,7 @@ services:
     environment:
       DATABASE_URL: sqlite:///instance/wecarcar1_auto.db
       ENABLE_SCHEDULER: "0"
+      ENABLE_TRAINING: "0"
       SYNC_BATCH_SIZE: "500"
       INTEGRATION_MODE: "standalone"
       HEDONIC_MODEL_PATH: ./instance/hedonic_model.pkl

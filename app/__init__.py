@@ -1,7 +1,7 @@
 from pathlib import Path
 from urllib.parse import urlparse
 
-from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, session, url_for
+from flask import Flask, current_app, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -89,7 +89,13 @@ def create_app(config_class=Config):
         def t(key, default=None):
             return pack.get(key, default if default is not None else key)
 
-        return {"i18n": pack, "lang": lang, "t": t, "supported_langs": app.config.get("SUPPORTED_LANGS")}
+        return {
+            "i18n": pack,
+            "lang": lang,
+            "t": t,
+            "supported_langs": app.config.get("SUPPORTED_LANGS"),
+            "training_enabled": bool(current_app.config.get("ENABLE_TRAINING", True)),
+        }
 
     from app.services.i18n_translate import translate as _translate_text
 
@@ -205,8 +211,9 @@ def create_app(config_class=Config):
         user = seed_admin(app)
         print(f"seeded admin: {user.username} ({user.role})")
 
-    from app.cli import sync_listings_cmd
+    from app.cli import sync_listings_cmd, train_models_cmd
     app.cli.add_command(sync_listings_cmd)
+    app.cli.add_command(train_models_cmd)
 
     # Prefer a dedicated scheduler process/container (ENABLE_SCHEDULER=0 on web).
     if app.config.get("ENABLE_SCHEDULER"):

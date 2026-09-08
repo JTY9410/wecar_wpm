@@ -51,6 +51,8 @@ class Config:
     INIT_ADMIN_PASSWORD = os.getenv("INIT_ADMIN_PASSWORD", "1004wecar")
 
     ENABLE_SCHEDULER = os.getenv("ENABLE_SCHEDULER", "0") == "1"
+    # Local/dev trains models. Docker web serve-only: ENABLE_TRAINING=0
+    ENABLE_TRAINING = os.getenv("ENABLE_TRAINING", "1") == "1"
     SYNC_BATCH_SIZE = int(os.getenv("SYNC_BATCH_SIZE", "500"))
 
     # Business constraints (PRD §2.2 / §5)

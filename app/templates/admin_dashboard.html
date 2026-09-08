@@ -31,7 +31,11 @@
     <div class="glass-card h-100 p-3">
       <h6 class="fw-bold">시스템 제어</h6>
       <button class="btn btn-outline-primary btn-sm" onclick="post('/admin/sync')">수동 동기화 (폴백)</button>
+      {% if training_enabled %}
       <button class="btn btn-outline-primary btn-sm" onclick="post('/admin/retrain')">AI 모델 재학습</button>
+      {% else %}
+      <p class="small text-muted mb-0 mt-2">웹 서버는 학습하지 않습니다. 로컬에서 만든 모델 파일만 서빙합니다.</p>
+      {% endif %}
       <button class="btn btn-outline-success btn-sm" onclick="runSummary()">시세 정성 요약 발행</button>
       <div id="summaryOut" class="small mt-2 text-muted" style="white-space:pre-wrap"></div>
     </div>

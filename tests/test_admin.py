@@ -137,6 +137,31 @@ def test_compose_publishes_nginx_proxy():
     assert "8090:5000" not in text
 
 
+def test_retrain_skipped_when_training_disabled(app, client):
+    app.config["ENABLE_TRAINING"] = False
+    login(client)
+    with patch("app.routes.admin.PriceModel") as pm, patch("app.routes.admin.HedonicModel") as hm:
+        resp = client.post("/admin/retrain")
+    body = resp.get_json()
+    assert resp.status_code == 200
+    assert body["ok"] is True
+    assert body.get("trained") is False
+    pm.return_value.train.assert_not_called()
+    hm.return_value.train.assert_not_called()
+
+
+def test_compose_web_disables_training():
+    text = Path("docker-compose.yml").read_text(encoding="utf-8")
+    assert 'ENABLE_TRAINING: "0"' in text
+
+
+def test_admin_hides_retrain_when_training_disabled(app, client):
+    app.config["ENABLE_TRAINING"] = False
+    login(client)
+    html = client.get("/admin/").get_data(as_text=True)
+    assert "재학습" not in html
+
+
 def test_admin_dashboard_polls_upload_status(client):
     login(client)
     html = client.get("/admin/").get_data(as_text=True)

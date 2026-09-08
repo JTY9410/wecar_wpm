@@ -22,6 +22,7 @@ def app():
         SQLALCHEMY_DATABASE_URI = f"sqlite:///{os.path.join(tmp, 'test.db')}"
         TESTING = True
         UPLOAD_SYNC = True
+        ENABLE_TRAINING = True
         WTF_CSRF_ENABLED = False
         LOGIN_DISABLED = False
 
