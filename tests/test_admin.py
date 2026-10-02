@@ -207,6 +207,11 @@ def test_users_page_has_add_button(client):
     assert "회원 추가" in html
     assert 'id="addUserBtn"' in html
     assert 'id="addUserForm"' in html
+    assert 'id="addUsername"' in html
+    assert 'id="addName"' in html
+    assert 'id="addPhone"' in html
+    assert 'id="addRole"' in html
+    assert 'name="role"' in html
     assert html.index("addUserBtn") < html.index("userTable")
 
 
@@ -228,6 +233,34 @@ def test_admin_can_create_user(app, client):
         assert u.role == "USER"
         assert u.name == "홍길동"
         assert u.check_password("secret12")
+
+
+def test_admin_can_create_admin_role_user(app, client):
+    login(client)
+    resp = client.post("/admin/users", json={
+        "username": "newadmin",
+        "password": "secret12",
+        "name": "관리",
+        "phone": "010-1111-2222",
+        "role": "ADMIN",
+    })
+    assert resp.status_code == 200
+    with app.app_context():
+        u = db.session.execute(db.select(User).where(User.username == "newadmin")).scalar_one()
+        assert u.role == "ADMIN"
+        assert u.is_admin is True
+        assert u.phone == "010-1111-2222"
+
+
+def test_admin_create_user_rejects_unknown_role(client):
+    login(client)
+    resp = client.post("/admin/users", json={
+        "username": "badrole",
+        "password": "secret12",
+        "role": "SUPER",
+    })
+    assert resp.status_code == 400
+    assert resp.get_json()["ok"] is False
 
 
 def test_admin_create_user_rejects_duplicate(client):

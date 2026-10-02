@@ -12,9 +12,12 @@
 <button type="button" class="btn btn-sm btn-primary" id="addUserBtn" data-bs-toggle="modal" data-bs-target="#addUserModal">회원 추가</button>
 {% endblock %}
 {% block content %}
-<div class="glass-card p-4 mb-3">
-  <h1 class="h4 mb-1">회원가입 관리</h1>
-  <p class="text-muted small mb-0">가입 승인 후 로그인할 수 있습니다. 관리자가 추가한 회원은 바로 로그인할 수 있습니다.</p>
+<div class="glass-card p-4 mb-3 d-flex flex-wrap justify-content-between align-items-start gap-3">
+  <div>
+    <h1 class="h4 mb-1">회원가입 관리</h1>
+    <p class="text-muted small mb-0">회원 추가로 아이디·이름·전화번호·권한을 지정할 수 있습니다. 추가된 회원은 바로 로그인할 수 있습니다.</p>
+  </div>
+  <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addUserModal">회원 추가</button>
 </div>
 <div class="modal fade" id="addUserModal" tabindex="-1" aria-labelledby="addUserModalLabel" aria-hidden="true">
   <div class="modal-dialog">
@@ -30,20 +33,23 @@
             <input type="text" class="form-control" id="addUsername" name="username" required autocomplete="off">
           </div>
           <div class="mb-3">
-            <label class="form-label small fw-semibold" for="addPassword">비밀번호 <span class="text-danger">*</span></label>
-            <input type="password" class="form-control" id="addPassword" name="password" required autocomplete="new-password">
-          </div>
-          <div class="mb-3">
             <label class="form-label small fw-semibold" for="addName">이름</label>
             <input type="text" class="form-control" id="addName" name="name" autocomplete="name">
           </div>
           <div class="mb-3">
-            <label class="form-label small fw-semibold" for="addPhone">전화</label>
+            <label class="form-label small fw-semibold" for="addPhone">전화번호</label>
             <input type="text" class="form-control" id="addPhone" name="phone" placeholder="010-0000-0000" autocomplete="tel">
           </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold" for="addRole">권한 <span class="text-danger">*</span></label>
+            <select class="form-select" id="addRole" name="role" required>
+              <option value="USER" selected>USER (일반)</option>
+              <option value="ADMIN">ADMIN (관리자)</option>
+            </select>
+          </div>
           <div class="mb-0">
-            <label class="form-label small fw-semibold" for="addAffiliation">소속</label>
-            <input type="text" class="form-control" id="addAffiliation" name="affiliation">
+            <label class="form-label small fw-semibold" for="addPassword">비밀번호 <span class="text-danger">*</span></label>
+            <input type="password" class="form-control" id="addPassword" name="password" required autocomplete="new-password">
           </div>
         </div>
         <div class="modal-footer">

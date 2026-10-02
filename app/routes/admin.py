@@ -528,13 +528,16 @@ def users_create():
     name = (data.get("name") or "").strip()
     phone = (data.get("phone") or "").strip()
     affiliation = (data.get("affiliation") or "").strip()
+    role = (data.get("role") or "USER").strip().upper()
     if not username or not password:
         return jsonify({"ok": False, "error": "아이디와 비밀번호를 입력해주세요."}), 400
+    if role not in ("USER", "ADMIN"):
+        return jsonify({"ok": False, "error": "권한은 USER 또는 ADMIN만 가능합니다."}), 400
     if db.session.execute(db.select(User).where(User.username == username)).scalar_one_or_none():
         return jsonify({"ok": False, "error": "이미 사용 중인 아이디입니다."}), 400
     user = User(
         username=username,
-        role="USER",
+        role=role,
         name=name or None,
         phone=phone or None,
         affiliation=affiliation or None,
