@@ -126,6 +126,7 @@
       </div>
     </div>
     <div class="d-flex align-items-center gap-2">
+      {% block page_actions %}{% endblock %}
       <div class="btn-group lang-switch" role="group" aria-label="{{ t('lang') }}">
         {% for L in supported_langs %}
         <a href="{{ url_for('set_lang', lang=L, next=request.full_path) }}"

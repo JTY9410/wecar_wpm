@@ -8,13 +8,13 @@
 {% extends "base.html" %}
 {% block title %}회원 관리 - {{ config.APP_NAME }}{% endblock %}
 {% block page_title %}회원 관리{% endblock %}
+{% block page_actions %}
+<button type="button" class="btn btn-sm btn-primary" id="addUserBtn" data-bs-toggle="modal" data-bs-target="#addUserModal">회원 추가</button>
+{% endblock %}
 {% block content %}
-<div class="glass-card p-4 mb-3 d-flex flex-wrap justify-content-between align-items-start gap-3">
-  <div>
-    <h1 class="h4 mb-1">회원가입 관리</h1>
-    <p class="text-muted small mb-0">가입 승인 후 로그인할 수 있습니다. 관리자가 추가한 회원은 바로 로그인할 수 있습니다.</p>
-  </div>
-  <button type="button" class="btn btn-primary" id="addUserBtn" data-bs-toggle="modal" data-bs-target="#addUserModal">회원 추가</button>
+<div class="glass-card p-4 mb-3">
+  <h1 class="h4 mb-1">회원가입 관리</h1>
+  <p class="text-muted small mb-0">가입 승인 후 로그인할 수 있습니다. 관리자가 추가한 회원은 바로 로그인할 수 있습니다.</p>
 </div>
 <div class="modal fade" id="addUserModal" tabindex="-1" aria-labelledby="addUserModalLabel" aria-hidden="true">
   <div class="modal-dialog">

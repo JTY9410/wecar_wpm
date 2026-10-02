@@ -178,7 +178,7 @@ def test_nginx_buffers_upload_body():
 def test_service_worker_cache_bumped(client):
     js = client.get("/service-worker.js").get_data(as_text=True)
     assert "wecar-wpm-v1" not in js
-    assert "wecar-wpm-v3" in js
+    assert "wecar-wpm-v4" in js
 
 
 def test_admin_dashboard_upload_js_handles_gateway_errors(client):
@@ -207,6 +207,7 @@ def test_users_page_has_add_button(client):
     assert "회원 추가" in html
     assert 'id="addUserBtn"' in html
     assert 'id="addUserForm"' in html
+    assert html.index("addUserBtn") < html.index("userTable")
 
 
 def test_admin_can_create_user(app, client):
