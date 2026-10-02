@@ -8,6 +8,25 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
 
+# Values that were committed / used as defaults. Never accept these outside tests.
+UNSAFE_SECRET_KEYS = frozenset({
+    "",
+    "change-me",
+    "ks_ai_secure_secret_key_2026",
+})
+
+
+def assert_secret_key_safe(secret_key, testing=False):
+    """Raise if SECRET_KEY is missing or a known-leaked/weak default."""
+    if testing:
+        return
+    key = (secret_key or "").strip()
+    if key in UNSAFE_SECRET_KEYS:
+        raise RuntimeError(
+            "SECRET_KEY is missing or is a known-insecure default. "
+            "Set a unique value in .env (openssl rand -hex 32)."
+        )
+
 
 def _abs(path: str) -> str:
     p = Path(path)
@@ -77,6 +96,10 @@ class Config:
 
     @classmethod
     def ensure_dirs(cls):
+        assert_secret_key_safe(
+            getattr(cls, "SECRET_KEY", ""),
+            testing=bool(getattr(cls, "TESTING", False)),
+        )
         for p in (cls.IMAGE_STORAGE_PATH, cls.EXCEL_UPLOAD_PATH, cls.CHROMA_PATH):
             Path(p).mkdir(parents=True, exist_ok=True)
         Path(cls.MODEL_PATH).parent.mkdir(parents=True, exist_ok=True)
