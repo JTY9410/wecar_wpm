@@ -178,7 +178,8 @@ def test_nginx_buffers_upload_body():
 def test_service_worker_cache_bumped(client):
     js = client.get("/service-worker.js").get_data(as_text=True)
     assert "wecar-wpm-v1" not in js
-    assert "wecar-wpm-v4" in js
+    assert "wecar-wpm-v4" not in js
+    assert "wecar-wpm-v5" in js
 
 
 def test_admin_dashboard_upload_js_handles_gateway_errors(client):
@@ -213,6 +214,18 @@ def test_users_page_has_add_button(client):
     assert 'id="addRole"' in html
     assert 'name="role"' in html
     assert html.index("addUserBtn") < html.index("userTable")
+
+
+def test_add_user_modal_is_outside_transformed_app_content(client):
+    """Bootstrap modal inside .app-content is clipped by shell-fade-in transform."""
+    login(client)
+    html = client.get("/admin/users").get_data(as_text=True)
+    main = re.search(r'<main class="app-content[^"]*"[^>]*>(.*?)</main>', html, re.S)
+    assert main, "app-content missing"
+    assert 'id="addUserModal"' not in main.group(1)
+    assert 'id="addUserModal"' in html
+    assert "document.body.appendChild" in html
+    assert "bootstrap.Modal" in html
 
 
 def test_admin_can_create_user(app, client):
