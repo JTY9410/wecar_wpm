@@ -8,7 +8,7 @@ from unittest.mock import patch
 from sqlalchemy import text
 
 from app.extensions import db
-from app.models import AuctionRecord, UploadHistory
+from app.models import AuctionRecord, UploadHistory, User
 from tests.conftest import login
 from tests.fixtures.make_fixture import build
 
@@ -198,4 +198,60 @@ def test_user_cannot_upload(app, client):
         db.session.commit()
     login(client, username="dealer2", password="pw")
     resp = client.post("/admin/upload")
+    assert resp.status_code == 403
+
+
+def test_users_page_has_add_button(client):
+    login(client)
+    html = client.get("/admin/users").get_data(as_text=True)
+    assert "회원 추가" in html
+    assert 'id="addUserBtn"' in html
+    assert 'id="addUserForm"' in html
+
+
+def test_admin_can_create_user(app, client):
+    login(client)
+    resp = client.post("/admin/users", json={
+        "username": "newdealer",
+        "password": "secret12",
+        "name": "홍길동",
+        "phone": "010-0000-0000",
+        "affiliation": "위카",
+    })
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["ok"] is True
+    with app.app_context():
+        u = db.session.execute(db.select(User).where(User.username == "newdealer")).scalar_one()
+        assert u.is_approved is True
+        assert u.role == "USER"
+        assert u.name == "홍길동"
+        assert u.check_password("secret12")
+
+
+def test_admin_create_user_rejects_duplicate(client):
+    login(client)
+    payload = {"username": "dupuser", "password": "secret12"}
+    assert client.post("/admin/users", json=payload).status_code == 200
+    resp = client.post("/admin/users", json=payload)
+    assert resp.status_code == 400
+    assert resp.get_json()["ok"] is False
+
+
+def test_admin_create_user_requires_username_and_password(client):
+    login(client)
+    resp = client.post("/admin/users", json={"username": "  ", "password": ""})
+    assert resp.status_code == 400
+    assert resp.get_json()["ok"] is False
+
+
+def test_user_cannot_create_user(app, client):
+    from app.models import User
+    with app.app_context():
+        u = User(username="dealer3", role="USER", is_approved=True)
+        u.set_password("pw")
+        db.session.add(u)
+        db.session.commit()
+    login(client, username="dealer3", password="pw")
+    resp = client.post("/admin/users", json={"username": "x", "password": "y"})
     assert resp.status_code == 403

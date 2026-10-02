@@ -1,11 +1,58 @@
-<!-- [UI Flow: GET /admin/users — 승인/철회 · 목록] -->
+<!--
+  [UI Flow]
+  1. Auth: admin
+  2. Data: GET /admin/users → users[] · POST /admin/users → {ok, user_id}
+  3. States: list | empty | add modal | error toast
+  4. Actions: 회원 추가 → 목록 새로고침 / 승인·철회
+-->
 {% extends "base.html" %}
 {% block title %}회원 관리 - {{ config.APP_NAME }}{% endblock %}
 {% block page_title %}회원 관리{% endblock %}
 {% block content %}
-<div class="glass-card p-4 mb-3">
-  <h1 class="h4 mb-1">회원가입 관리</h1>
-  <p class="text-muted small mb-0">가입 승인 후 로그인할 수 있습니다. 관리자 계정은 승인 상태가 자동 유지됩니다.</p>
+<div class="glass-card p-4 mb-3 d-flex flex-wrap justify-content-between align-items-start gap-3">
+  <div>
+    <h1 class="h4 mb-1">회원가입 관리</h1>
+    <p class="text-muted small mb-0">가입 승인 후 로그인할 수 있습니다. 관리자가 추가한 회원은 바로 로그인할 수 있습니다.</p>
+  </div>
+  <button type="button" class="btn btn-primary" id="addUserBtn" data-bs-toggle="modal" data-bs-target="#addUserModal">회원 추가</button>
+</div>
+<div class="modal fade" id="addUserModal" tabindex="-1" aria-labelledby="addUserModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="addUserForm">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="addUserModalLabel">회원 추가</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold" for="addUsername">아이디 <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="addUsername" name="username" required autocomplete="off">
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold" for="addPassword">비밀번호 <span class="text-danger">*</span></label>
+            <input type="password" class="form-control" id="addPassword" name="password" required autocomplete="new-password">
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold" for="addName">이름</label>
+            <input type="text" class="form-control" id="addName" name="name" autocomplete="name">
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold" for="addPhone">전화</label>
+            <input type="text" class="form-control" id="addPhone" name="phone" placeholder="010-0000-0000" autocomplete="tel">
+          </div>
+          <div class="mb-0">
+            <label class="form-label small fw-semibold" for="addAffiliation">소속</label>
+            <input type="text" class="form-control" id="addAffiliation" name="affiliation">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+          <button type="submit" class="btn btn-primary">추가</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 <div class="glass-card p-0 overflow-hidden">
   <div class="table-responsive">
@@ -58,6 +105,28 @@
 {% endblock %}
 {% block scripts %}
 <script>
+document.getElementById('addUserForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const payload = Object.fromEntries(fd.entries());
+  try {
+    const r = await fetch('/admin/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(payload),
+    });
+    const data = await r.json();
+    if (data.ok) {
+      toast('회원을 추가했습니다.', 'success');
+      location.reload();
+    } else {
+      toast(data.error || '추가 실패', 'danger');
+    }
+  } catch (err) {
+    toast('네트워크 오류', 'danger');
+  }
+});
 document.getElementById('userTable').addEventListener('click', async (e) => {
   const row = e.target.closest('tr[data-id]');
   if (!row) return;

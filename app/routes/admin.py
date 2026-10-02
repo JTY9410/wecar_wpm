@@ -517,6 +517,35 @@ def users():
     return render_template("admin_users.html", users=rows)
 
 
+@admin_bp.route("/users", methods=["POST"])
+@login_required
+@admin_required
+def users_create():
+    from app.models import User
+    data = request.get_json(silent=True) or request.form
+    username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
+    name = (data.get("name") or "").strip()
+    phone = (data.get("phone") or "").strip()
+    affiliation = (data.get("affiliation") or "").strip()
+    if not username or not password:
+        return jsonify({"ok": False, "error": "아이디와 비밀번호를 입력해주세요."}), 400
+    if db.session.execute(db.select(User).where(User.username == username)).scalar_one_or_none():
+        return jsonify({"ok": False, "error": "이미 사용 중인 아이디입니다."}), 400
+    user = User(
+        username=username,
+        role="USER",
+        name=name or None,
+        phone=phone or None,
+        affiliation=affiliation or None,
+        is_approved=True,
+    )
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+    return jsonify({"ok": True, "user_id": user.id, "username": user.username})
+
+
 @admin_bp.route("/users/<int:user_id>/approve", methods=["POST"])
 @login_required
 @admin_required
