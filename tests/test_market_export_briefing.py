@@ -227,3 +227,20 @@ def test_ai_learning_admin_ok(client, db):
     resp = client.get("/admin/ai-learning")
     assert resp.status_code == 200
     assert b"AI" in resp.data
+
+
+def test_ai_learning_ok_with_multiple_upload_rows(client, db):
+    """업로드·동기화 이력이 여러 건이어도 학습 페이지가 500이 나지 않는다."""
+    from app.models import SyncLog, UploadHistory
+
+    db.session.add_all([
+        UploadHistory(filename="a.xlsx", week_no="2026-W29", mode="append", status="SUCCESS", rows_ok=1),
+        UploadHistory(filename="b.xlsx", week_no="2026-W30", mode="append", status="SUCCESS", rows_ok=2),
+        SyncLog(sync_type="WEEKLY_EXCEL_UPLOAD", status="SUCCESS", records_processed=1),
+        SyncLog(sync_type="WEEKLY_EXCEL_UPLOAD", status="SUCCESS", records_processed=2),
+    ])
+    db.session.commit()
+    login(client)
+    resp = client.get("/admin/ai-learning")
+    assert resp.status_code == 200
+    assert "AI학습" in resp.get_data(as_text=True) or b"AI" in resp.data

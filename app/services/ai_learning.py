@@ -28,11 +28,11 @@ def get_progress_stats():
     retrain_count = retrain_logs + upload_ok
 
     last_upload = db.session.execute(
-        db.select(UploadHistory).order_by(UploadHistory.created_at.desc())
-    ).scalar_one_or_none()
+        db.select(UploadHistory).order_by(UploadHistory.created_at.desc()).limit(1)
+    ).scalars().first()
     last_sync = db.session.execute(
-        db.select(SyncLog).order_by(SyncLog.created_at.desc())
-    ).scalar_one_or_none()
+        db.select(SyncLog).order_by(SyncLog.created_at.desc()).limit(1)
+    ).scalars().first()
     last_retrain_at = None
     if last_upload and last_upload.created_at:
         last_retrain_at = last_upload.created_at
