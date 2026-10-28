@@ -53,11 +53,17 @@
     <span class="brand-mark">{{ brand }}</span>
   </a>
   <nav class="side-rail-nav">
-    <a href="{{ url_for('market.index') }}" class="side-rail-item {{ 'active' if ep and ep.startswith('market.') }}" title="{{ t('nav_market') }}">
+    <a href="{{ url_for('market.index') }}" class="side-rail-item {{ 'active' if ep == 'market.index' }}" title="{{ t('nav_market') }}">
       <span class="side-rail-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 15V9"/><path d="M13 15V7"/><path d="M18 15v-3"/></svg>
       </span>
       <span class="side-rail-label">{{ t('nav_market') }}</span>
+    </a>
+    <a href="{{ url_for('market.full') }}" class="side-rail-item {{ 'active' if ep == 'market.full' }}" title="{{ t('nav_market_full') }}">
+      <span class="side-rail-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M8 9h8M8 12h8M8 15h5"/></svg>
+      </span>
+      <span class="side-rail-label">{{ t('nav_market_full') }}</span>
     </a>
     <a href="{{ url_for('briefing.index') }}" class="side-rail-item {{ 'active' if ep and ep.startswith('briefing.') }}" title="{{ t('nav_briefing') }}">
       <span class="side-rail-icon" aria-hidden="true">
@@ -152,7 +158,8 @@
 
 {% if current_user.is_authenticated %}
 <nav class="mobile-bottom-nav d-lg-none" aria-label="{{ t('mobile_menu') }}">
-  <a href="{{ url_for('market.index') }}" class="mobile-nav-item {{ 'active' if ep and ep.startswith('market.') }}">{{ t('nav_market') }}</a>
+  <a href="{{ url_for('market.index') }}" class="mobile-nav-item {{ 'active' if ep == 'market.index' }}">{{ t('nav_market') }}</a>
+  <a href="{{ url_for('market.full') }}" class="mobile-nav-item {{ 'active' if ep == 'market.full' }}">{{ t('nav_market_full') }}</a>
   <a href="{{ url_for('briefing.index') }}" class="mobile-nav-item {{ 'active' if ep and ep.startswith('briefing.') }}">{{ t('nav_briefing') }}</a>
   {% if current_user.is_admin %}
   <a href="{{ url_for('admin.dashboard') }}" class="mobile-nav-item {{ 'active' if ep == 'admin.dashboard' }}">{{ t('admin') }}</a>

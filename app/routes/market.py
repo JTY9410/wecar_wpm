@@ -16,6 +16,47 @@ def _lang():
     return session.get("lang") or request.args.get("lang") or "ko"
 
 
+@market_bp.route("/market/all")
+@login_required
+def full():
+    lang = _lang()
+    return render_template(
+        "market_full.html",
+        makers=market_query.makers(lang=lang),
+        weeks=market_query.weeks(),
+        i18n=load_pack(lang),
+        lang=lang,
+    )
+
+
+@market_bp.route("/market/api/weeks")
+@login_required
+def api_weeks():
+    return jsonify({"ok": True, "weeks": market_query.weeks()})
+
+
+@market_bp.route("/market/api/full-grid")
+@login_required
+def full_grid():
+    week_from = (request.args.get("week_from") or "").strip()
+    week_to = (request.args.get("week_to") or "").strip()
+    if not week_from or not week_to:
+        return jsonify({"ok": False, "error": "경매차수 시작과 끝을 선택해주세요."}), 400
+    return jsonify(market_query.full_grid(
+        week_from=week_from,
+        week_to=week_to,
+        maker=request.args.get("maker"),
+        model_name=request.args.get("model_name"),
+        mdetail_name=request.args.get("mdetail_name") or request.args.get("car_name"),
+        grade_name=request.args.get("grade_name"),
+        gdetail_name=request.args.get("gdetail_name"),
+        car_year=request.args.get("car_year"),
+        fuel=request.args.get("fuel"),
+        q=request.args.get("q"),
+        lang=_lang(),
+    ))
+
+
 @market_bp.route("/")
 @login_required
 def index():

@@ -142,6 +142,11 @@ class AuctionRecord(db.Model):
     raw_json = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=utcnow)
 
+    __table_args__ = (
+        db.Index("ix_auction_record_week_trim", "week_no", "maker", "model_name", "gdetail_name"),
+        db.Index("ix_auction_record_km_acc", "km_bin", "is_accident_free"),
+    )
+
 
 class VehiclePriceTable(db.Model):
     __tablename__ = "vehicle_price_table"

@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 {% block page_title %}{{ i18n.market_title }}{% endblock %}
+{% block page_actions %}
+<a class="btn btn-sm btn-outline-primary" href="{{ url_for('market.full') }}">{{ i18n.market_full_title }}</a>
+{% endblock %}
 {% block content %}
 <!-- [UI Flow: 캐스케이드 → 낙찰가 시세 그리드/매트릭스 → 모수 세부내역 모달] -->
 <script>window.I18N = {{ i18n|tojson }}; window.LANG = {{ lang|tojson }};</script>

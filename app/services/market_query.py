@@ -403,6 +403,124 @@ def price_trend(maker=None, model_name=None, mdetail_name=None, grade_name=None,
     } for w in week_keys]
 
 
+def weeks():
+    rows = db.session.execute(
+        db.select(AuctionRecord.week_no).distinct()
+        .where(AuctionRecord.week_no.isnot(None))
+        .order_by(AuctionRecord.week_no)
+    ).scalars().all()
+    return [w for w in rows if w]
+
+
+def _weeks_in_range(week_from, week_to):
+    all_w = weeks()
+    if not all_w:
+        return []
+    wf = week_from or all_w[0]
+    wt = week_to or all_w[-1]
+    if wf > wt:
+        wf, wt = wt, wf
+    return [w for w in all_w if wf <= w <= wt]
+
+
+def full_grid(week_from=None, week_to=None, maker=None, model_name=None,
+              mdetail_name=None, grade_name=None, gdetail_name=None,
+              car_year=None, fuel=None, q=None, lang="ko", limit=2000):
+    """경매차수 구간의 출품 시세를 트림·주행구간·사고여부로 집계."""
+    selected = _weeks_in_range(week_from, week_to)
+    if not selected:
+        return {"ok": True, "weeks": [], "rows": [], "count": 0}
+
+    stmt = (
+        db.select(
+            AuctionRecord.maker,
+            AuctionRecord.model_name,
+            AuctionRecord.mdetail_name,
+            AuctionRecord.grade_name,
+            AuctionRecord.gdetail_name,
+            AuctionRecord.car_year,
+            AuctionRecord.fuel,
+            AuctionRecord.km_bin,
+            AuctionRecord.is_accident_free,
+            db.func.avg(AuctionRecord.hammer_price).label("hammer_avg"),
+            db.func.count().label("sample_count"),
+        )
+        .where(
+            AuctionRecord.hammer_price.isnot(None),
+            AuctionRecord.hammer_price > 0,
+            AuctionRecord.week_no.in_(selected),
+        )
+        .group_by(
+            AuctionRecord.maker,
+            AuctionRecord.model_name,
+            AuctionRecord.mdetail_name,
+            AuctionRecord.grade_name,
+            AuctionRecord.gdetail_name,
+            AuctionRecord.car_year,
+            AuctionRecord.fuel,
+            AuctionRecord.km_bin,
+            AuctionRecord.is_accident_free,
+        )
+    )
+    if maker:
+        stmt = stmt.where(AuctionRecord.maker == maker)
+    if model_name:
+        stmt = stmt.where(AuctionRecord.model_name == model_name)
+    if mdetail_name:
+        stmt = stmt.where(AuctionRecord.mdetail_name == mdetail_name)
+    if grade_name:
+        stmt = stmt.where(AuctionRecord.grade_name == grade_name)
+    if gdetail_name:
+        stmt = stmt.where(AuctionRecord.gdetail_name == gdetail_name)
+    if car_year not in (None, "") and _safe_int(car_year) is not None:
+        stmt = stmt.where(AuctionRecord.car_year == _safe_int(car_year))
+    if fuel:
+        stmt = stmt.where(AuctionRecord.fuel == fuel)
+    word = (q or "").strip()
+    if word:
+        like = f"%{word}%"
+        stmt = stmt.where(db.or_(
+            AuctionRecord.maker.ilike(like),
+            AuctionRecord.model_name.ilike(like),
+            AuctionRecord.mdetail_name.ilike(like),
+            AuctionRecord.grade_name.ilike(like),
+            AuctionRecord.gdetail_name.ilike(like),
+            AuctionRecord.fuel.ilike(like),
+            db.cast(AuctionRecord.car_year, db.String).like(like),
+        ))
+
+    stmt = stmt.order_by(
+        AuctionRecord.maker,
+        AuctionRecord.model_name,
+        AuctionRecord.gdetail_name,
+        AuctionRecord.car_year.desc(),
+        AuctionRecord.km_bin,
+    ).limit(limit)
+    rows = db.session.execute(stmt).all()
+
+    def _tr(value):
+        return translate(value, lang, polish=False) if value and lang != "ko" else value
+
+    result = []
+    for r in rows:
+        acc_free = bool(r.is_accident_free)
+        result.append({
+            "maker": _clean(r.maker), "maker_label": _tr(_clean(r.maker)),
+            "model_name": _clean(r.model_name), "model_name_label": _tr(_clean(r.model_name)),
+            "mdetail_name": _clean(r.mdetail_name), "mdetail_name_label": _tr(_clean(r.mdetail_name)),
+            "grade_name": _clean(r.grade_name), "grade_name_label": _tr(_clean(r.grade_name)),
+            "gdetail_name": _clean(r.gdetail_name), "gdetail_name_label": _tr(_clean(r.gdetail_name)),
+            "car_year": r.car_year,
+            "fuel": _clean(r.fuel), "fuel_label": _tr(_clean(r.fuel)),
+            "km_bin": _clean(r.km_bin),
+            "is_accident_free": _accident_label(acc_free, lang),
+            "is_accident_free_flag": acc_free,
+            "hammer_avg": round(float(r.hammer_avg), 1) if r.hammer_avg is not None else None,
+            "sample_count": int(r.sample_count or 0),
+        })
+    return {"ok": True, "weeks": selected, "rows": result, "count": len(result)}
+
+
 def forecast_from_trend(trend):
     """주차별 추이를 바탕으로 금주 예상가를 산출 (AI가 아닌 통계적 계산, PRD §2 준수).
 
