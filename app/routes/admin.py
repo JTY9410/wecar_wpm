@@ -27,7 +27,7 @@ from app.services import api_keys as api_key_service
 from app.services import analysis_logic as analysis_logic_service
 from app.services import code_mapping_sync
 from app.services.ai_learning import get_progress_stats, list_milestones, seed_default_milestone
-from app.services import google_translate, market_query, rag_store
+from app.services import car_info_api, diag_trim_resolve, google_translate, market_query, rag_store
 from app.services.excel_pipeline import ExcelValidationError, process_weekly_upload
 from app.services.llm_hub import (
     LLMError, generate_market_summary, key_status, save_provider_settings,
@@ -116,6 +116,11 @@ def dashboard():
         google_translate_status={
             "key_configured": bool(google_key),
             "key_hint": (google_key[:4] + "..." + google_key[-4:]) if len(google_key) >= 12 else ("설정됨" if google_key else "미설정"),
+        },
+        car_info_status={
+            "key_configured": car_info_api.is_configured(),
+            "key_hint": car_info_api.key_hint(),
+            "api_url": car_info_api.resolve_api_url(),
         },
     )
 
@@ -365,6 +370,93 @@ def translate_test():
     ))
     db.session.commit()
     return jsonify(result), (200 if result.get("ok") else 400)
+
+
+@admin_bp.route("/car-info/settings", methods=["POST"])
+@login_required
+@admin_required
+def car_info_settings():
+    api_key = request.form.get("api_key")
+    api_url = request.form.get("api_url")
+    clear_key = request.form.get("clear_key") == "1"
+    if not clear_key and api_key is not None and not str(api_key).strip() and api_url is None:
+        return jsonify({"ok": False, "error": "API 키 또는 URL을 입력하세요."}), 400
+    car_info_api.save_settings(
+        api_key=api_key if api_key not in (None, "") else None,
+        api_url=api_url,
+        clear_key=clear_key,
+    )
+    return jsonify({"ok": True, "message": "차량정보 API 설정이 저장되었습니다."})
+
+
+@admin_bp.route("/car-info/test", methods=["POST"])
+@login_required
+@admin_required
+def car_info_test():
+    result = car_info_api.test_connection()
+    db.session.add(SyncLog(
+        sync_type="CAR_INFO_TEST",
+        status="SUCCESS" if result.get("ok") else "FAIL",
+        records_processed=1 if result.get("ok") else 0,
+        error_message=None if result.get("ok") else result.get("error"),
+    ))
+    db.session.commit()
+    return jsonify(result), (200 if result.get("ok") else 400)
+
+
+@admin_bp.route("/diag-mapping")
+@login_required
+@admin_required
+def diag_mapping():
+    status_filter = request.args.get("status", "")
+    level_filter = request.args.get("level", "")
+    mappings = diag_trim_resolve.list_mappings(status=status_filter, level=level_filter)
+    return render_template(
+        "admin_diag_mapping.html",
+        mappings=mappings,
+        status_filter=status_filter,
+        level_filter=level_filter,
+    )
+
+
+@admin_bp.route("/diag-mapping/<int:mapping_id>/status", methods=["POST"])
+@login_required
+@admin_required
+def diag_mapping_status(mapping_id):
+    status = request.form.get("status", "")
+    if diag_trim_resolve.set_mapping_status(mapping_id, status):
+        flash(f"상태를 {status}(으)로 변경했습니다.", "success")
+    else:
+        flash("상태 변경에 실패했습니다.", "danger")
+    qs = {}
+    if request.form.get("return_status"):
+        qs["status"] = request.form.get("return_status")
+    if request.form.get("return_level"):
+        qs["level"] = request.form.get("return_level")
+    return redirect(url_for("admin.diag_mapping", **qs))
+
+
+@admin_bp.route("/diag-mapping/manual", methods=["POST"])
+@login_required
+@admin_required
+def diag_mapping_manual():
+    level = (request.form.get("level") or "").strip()
+    diag_idx = (request.form.get("diag_idx") or "").strip()
+    market_name = (request.form.get("market_name") or "").strip()
+    diag_name = (request.form.get("diag_name") or "").strip() or None
+    if not level or not diag_idx or not market_name:
+        flash("level, diag_idx, market_name은 필수입니다.", "danger")
+        return redirect(url_for("admin.diag_mapping"))
+    diag_trim_resolve.save_mapping(
+        level=level,
+        diag_idx=diag_idx,
+        market_name=market_name,
+        diag_name=diag_name,
+        status="confirmed",
+        source="manual",
+    )
+    flash("매핑을 저장했습니다.", "success")
+    return redirect(url_for("admin.diag_mapping"))
 
 
 @admin_bp.route("/translations")

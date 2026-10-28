@@ -321,3 +321,32 @@ class AnalysisLogic(db.Model):
     sort_order = db.Column(db.Integer, default=0)
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
     updated_by = db.Column(db.String(80))
+
+
+class CarInfoCache(db.Model):
+    """위카 차량정보 API 응답 캐시 (차량번호 기준, 일일 한도 절약)."""
+    __tablename__ = "car_info_cache"
+
+    car_no = db.Column(db.String(32), primary_key=True)
+    payload_json = db.Column(db.Text, nullable=False)
+    source = db.Column(db.String(32))
+    fetched_at = db.Column(db.DateTime, default=utcnow)
+
+
+class DiagTrimMapping(db.Model):
+    """오토업(diag) 등급체계 ↔ 도매시세(누적) 트림명 매핑."""
+    __tablename__ = "diag_trim_mapping"
+    __table_args__ = (
+        db.UniqueConstraint("level", "diag_idx", name="uq_diag_trim_level_idx"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    level = db.Column(db.String(16), nullable=False, index=True)  # maker|model|mdetail|grade|gdetail|fuel
+    diag_idx = db.Column(db.String(64), nullable=False)
+    diag_name = db.Column(db.String(256))
+    market_name = db.Column(db.String(256), nullable=False)
+    status = db.Column(db.String(16), nullable=False, default="candidate", index=True)
+    match_score = db.Column(db.Float)
+    source = db.Column(db.String(16), nullable=False, default="auto")  # auto|manual
+    parent_market_name = db.Column(db.String(256))
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)

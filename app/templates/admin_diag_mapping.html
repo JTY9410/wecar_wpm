@@ -1,0 +1,115 @@
+<!--
+  [UI Flow]
+  1. Auth: admin only
+  2. Data: DiagTrimMapping rows · POST status/manual
+  3. States: filter | list | flash
+  4. Actions: 확정/거절 · 수동 등록
+-->
+{% extends "base.html" %}
+{% block page_title %}오토업↔시세 매핑{% endblock %}
+{% block page_actions %}
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin.dashboard') }}">관리 홈</a>
+{% endblock %}
+{% block content %}
+<div class="glass-card p-3 mb-3">
+  <h1 class="h5 mb-1">오토업 등급 ↔ 도매시세 트림 매핑</h1>
+  <p class="small text-muted mb-3">차량번호 조회 시 자동 매칭된 후보를 확정·거절하거나 수동으로 등록합니다.</p>
+  <form class="row g-2 align-items-end" method="get">
+    <div class="col-auto">
+      <label class="form-label small mb-1">상태</label>
+      <select name="status" class="form-select form-select-sm">
+        <option value="">전체</option>
+        {% for s in ('candidate','confirmed','rejected') %}
+        <option value="{{ s }}" {% if status_filter==s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <label class="form-label small mb-1">레벨</label>
+      <select name="level" class="form-select form-select-sm">
+        <option value="">전체</option>
+        {% for lv in ('maker','model','mdetail','grade','gdetail','fuel') %}
+        <option value="{{ lv }}" {% if level_filter==lv %}selected{% endif %}>{{ lv }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-sm btn-primary" type="submit">필터</button>
+    </div>
+  </form>
+</div>
+
+<div class="glass-card p-3 mb-3">
+  <h2 class="h6 fw-bold">수동 등록</h2>
+  <form method="post" action="{{ url_for('admin.diag_mapping_manual') }}" class="row g-2 align-items-end">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="col-md-2">
+      <label class="form-label small mb-1">level</label>
+      <select name="level" class="form-select" required>
+        {% for lv in ('maker','model','mdetail','grade','gdetail','fuel') %}
+        <option value="{{ lv }}">{{ lv }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small mb-1">diag_idx</label>
+      <input name="diag_idx" class="form-control" required>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small mb-1">diag_name</label>
+      <input name="diag_name" class="form-control">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small mb-1">시세명 (market_name)</label>
+      <input name="market_name" class="form-control" required>
+    </div>
+    <div class="col-md-2">
+      <button class="btn btn-outline-primary w-100" type="submit">저장</button>
+    </div>
+  </form>
+</div>
+
+<div class="glass-card p-0 overflow-hidden">
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead>
+        <tr>
+          <th>level</th><th>diag_idx</th><th>diag_name</th><th>market_name</th>
+          <th>status</th><th>score</th><th>source</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in mappings %}
+        <tr>
+          <td>{{ m.level }}</td>
+          <td class="small">{{ m.diag_idx }}</td>
+          <td>{{ m.diag_name or '-' }}</td>
+          <td>{{ m.market_name }}</td>
+          <td><span class="badge text-bg-secondary">{{ m.status }}</span></td>
+          <td>{{ '%.2f'|format(m.match_score) if m.match_score is not none else '-' }}</td>
+          <td>{{ m.source }}</td>
+          <td class="text-end text-nowrap">
+            <form class="d-inline" method="post" action="{{ url_for('admin.diag_mapping_status', mapping_id=m.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="return_status" value="{{ status_filter }}">
+              <input type="hidden" name="return_level" value="{{ level_filter }}">
+              <input type="hidden" name="status" value="confirmed">
+              <button class="btn btn-sm btn-outline-success" type="submit">확정</button>
+            </form>
+            <form class="d-inline" method="post" action="{{ url_for('admin.diag_mapping_status', mapping_id=m.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="return_status" value="{{ status_filter }}">
+              <input type="hidden" name="return_level" value="{{ level_filter }}">
+              <input type="hidden" name="status" value="rejected">
+              <button class="btn btn-sm btn-outline-danger" type="submit">거절</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="text-center text-muted py-4">매핑 없음</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

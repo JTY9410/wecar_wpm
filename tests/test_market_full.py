@@ -129,3 +129,37 @@ def test_full_grid_requires_weeks(client):
     resp = client.get("/market/api/full-grid")
     assert resp.status_code == 400
     assert resp.get_json()["ok"] is False
+
+
+def test_full_market_page_has_export_button(app, client):
+    with app.app_context():
+        u = User(username="dealer_export_ui", role="USER", is_approved=True)
+        u.set_password("pw")
+        db.session.add(u)
+        db.session.commit()
+    login(client, username="dealer_export_ui", password="pw")
+    html = client.get("/market/all").get_data(as_text=True)
+    assert 'id="fullExport"' in html
+    assert "엑셀" in html or "export" in html.lower()
+
+
+def test_export_full_grid_requires_weeks(client):
+    login(client)
+    resp = client.get("/market/api/export/full-grid")
+    assert resp.status_code == 400
+
+
+def test_export_full_grid_xlsx(app, client):
+    _seed_range(app)
+    login(client)
+    resp = client.get("/market/api/export/full-grid", query_string={
+        "week_from": "2026-W29",
+        "week_to": "2026-W30",
+        "maker": "현대",
+        "q": "그랜저",
+    })
+    assert resp.status_code == 200
+    assert "spreadsheet" in (resp.mimetype or "")
+    assert resp.data[:2] == b"PK"
+    assert "full" in (resp.headers.get("Content-Disposition") or "").lower() or \
+        "wholesale" in (resp.headers.get("Content-Disposition") or "").lower()

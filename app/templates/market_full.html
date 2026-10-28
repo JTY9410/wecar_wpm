@@ -1,9 +1,9 @@
 <!--
   [UI Flow]
   1. Auth: login (회원·관리자)
-  2. Data: GET /market/api/weeks · GET /market/api/full-grid → {ok, rows[]}
+  2. Data: GET /market/api/weeks · GET /market/api/full-grid · GET /market/api/export/full-grid
   3. States: pick weeks | searching | empty | grid
-  4. Actions: 차수·필터 검색 → 트림·주행·사고 집계 표
+  4. Actions: 차수·필터 검색 → 트림·주행·사고 집계 표 · 엑셀 내보내기
 -->
 {% extends "base.html" %}
 {% block title %}{{ i18n.market_full_title }} - {{ config.APP_NAME }}{% endblock %}
@@ -61,8 +61,9 @@
       <label class="form-label small mb-1" for="qWord">{{ i18n.q_word }}</label>
       <input type="search" id="qWord" class="form-control" placeholder="{{ i18n.q_word_ph }}" autocomplete="off">
     </div>
-    <div class="col-auto">
+    <div class="col-auto d-flex gap-2 flex-wrap">
       <button type="button" id="fullSearch" class="btn btn-primary px-3">{{ i18n.search }}</button>
+      <button type="button" id="fullExport" class="btn btn-outline-secondary px-3">{{ i18n.export_excel }}</button>
     </div>
   </div>
 </div>
@@ -92,5 +93,5 @@
 </div>
 {% endblock %}
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/market_full.js') }}?v=1"></script>
+<script src="{{ url_for('static', filename='js/market_full.js') }}?v=2"></script>
 {% endblock %}

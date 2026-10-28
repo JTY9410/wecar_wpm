@@ -4,9 +4,29 @@
 <a class="btn btn-sm btn-outline-primary" href="{{ url_for('market.full') }}">{{ i18n.market_full_title }}</a>
 {% endblock %}
 {% block content %}
-<!-- [UI Flow: 캐스케이드 → 낙찰가 시세 그리드/매트릭스 → 모수 세부내역 모달] -->
-<script>window.I18N = {{ i18n|tojson }}; window.LANG = {{ lang|tojson }};</script>
+<!--
+  [UI Flow]
+  1. Auth: login
+  2. Data: cascade grid · POST/GET /api/lookup/plate
+  3. States: trim search | plate search | matrix | samples
+  4. Actions: 1.세부등급조회 · 2.차량번호조회 → 시세 그리드
+-->
+<script>
+  window.I18N = {{ i18n|tojson }};
+  window.LANG = {{ lang|tojson }};
+  window.CAR_INFO_CONFIGURED = {{ car_info_configured|tojson }};
+</script>
 
+<ul class="nav nav-pills gap-2 mb-3" id="marketModeTabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="tab-trim" type="button" data-mode="trim" role="tab">1. {{ i18n.market_mode_trim }}</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="tab-plate" type="button" data-mode="plate" role="tab">2. {{ i18n.market_mode_plate }}</button>
+  </li>
+</ul>
+
+<div id="modeTrim">
 <div class="glass-card p-3 mb-3">
   <p class="small text-muted mb-2 mb-md-3">{{ i18n.hammer_avg }} · {{ i18n.unit_man }}</p>
   <div class="row g-2 align-items-end">
@@ -53,6 +73,34 @@
       <button id="f-matrix" class="btn btn-outline-primary px-3">{{ i18n.matrix }}</button>
       <button id="f-export" type="button" class="btn btn-outline-secondary px-3">{{ i18n.export_excel }}</button>
     </div>
+  </div>
+</div>
+</div>
+
+<div id="modePlate" class="d-none">
+  <div class="glass-card p-3 mb-3">
+    <p class="small text-muted mb-2">{{ i18n.plate_desc }}</p>
+    {% if not car_info_configured %}
+    <div class="alert alert-warning py-2 small mb-3">{{ i18n.plate_api_missing }}</div>
+    {% endif %}
+    <div class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label small mb-1" for="plateCarNo">{{ i18n.plate_car_no }}</label>
+        <input type="text" id="plateCarNo" class="form-control" placeholder="{{ i18n.plate_car_no_ph }}" autocomplete="off">
+      </div>
+      <div class="col-auto">
+        <button type="button" id="plateSearch" class="btn btn-primary px-3">{{ i18n.search }}</button>
+      </div>
+    </div>
+  </div>
+  <div id="plateInfoCard" class="glass-card p-3 mb-3 d-none">
+    <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
+      <h2 class="h6 mb-0" id="plateTitle">-</h2>
+      <span class="badge text-bg-light" id="plateBadge"></span>
+    </div>
+    <div class="row g-2 small" id="plateMeta"></div>
+    <p class="small text-muted mb-0 mt-2" id="plateMappingPath"></p>
+    <p class="small text-warning mb-0 mt-1 d-none" id="plateNotes"></p>
   </div>
 </div>
 
@@ -182,5 +230,5 @@
     </div>
   </div>
 </div>
-<script src="{{ url_for('static', filename='js/market.js') }}?v=6"></script>
+<script src="{{ url_for('static', filename='js/market.js') }}?v=7"></script>
 {% endblock %}

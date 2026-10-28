@@ -147,6 +147,44 @@
   <div id="googleTranslateTestResult" class="mt-2 small"></div>
 </div>
 
+<div class="glass-card mt-3 p-3" id="car-info-settings">
+  <h5 class="fw-bold mb-1">위카 차량정보 API (번호조회)</h5>
+  <p class="small text-muted mb-3">
+    시세 &gt; 차량번호조회의 외부 조회 키입니다. form POST로만 호출하며, 조회 결과는 차량번호 단위로 캐시됩니다.
+  </p>
+  <div class="mb-2 d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div>
+      <span class="badge {{ 'bg-success' if car_info_status.key_configured else 'bg-warning text-dark' }}">
+        {{ '키 등록됨' if car_info_status.key_configured else '키 미등록' }}
+      </span>
+      {% if car_info_status.key_configured %}
+        <span class="small text-muted ms-1">{{ car_info_status.key_hint }}</span>
+      {% endif %}
+    </div>
+    <a href="{{ url_for('admin.diag_mapping') }}" class="btn btn-sm btn-outline-secondary">오토업↔시세 매핑</a>
+  </div>
+  <div class="row g-2 align-items-end">
+    <div class="col-md-5">
+      <label class="form-label small mb-1" for="key-car_info">인증키 (authkey)</label>
+      <div class="input-group">
+        <input id="key-car_info" type="password" class="form-control" autocomplete="off"
+               placeholder="{% if car_info_status.key_configured %}새 키를 입력하면 교체됩니다{% else %}authkey를 붙여넣으세요{% endif %}">
+        <button class="btn btn-outline-secondary" type="button" onclick="toggleKey('car_info')" title="키 보기/숨기기">보기</button>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label small mb-1" for="url-car_info">API URL</label>
+      <input id="url-car_info" type="url" class="form-control" value="{{ car_info_status.api_url }}" autocomplete="off">
+    </div>
+    <div class="col-md-3 d-flex flex-wrap gap-2">
+      <button class="btn btn-primary" type="button" onclick="saveCarInfoSettings()">저장</button>
+      <button class="btn btn-outline-danger" type="button" onclick="clearCarInfoKey()">키삭제</button>
+      <button class="btn btn-outline-primary" type="button" onclick="testCarInfo()">연결 테스트</button>
+    </div>
+  </div>
+  <div id="carInfoTestResult" class="mt-2 small"></div>
+</div>
+
 <div class="glass-card mt-3 p-3">
   <h6 class="fw-bold">업로드 히스토리</h6>
   <div class="table-responsive admin-table-panel" data-scroll>
@@ -343,6 +381,40 @@ async function testGoogleTranslate() {
     }
   } catch (err) {
     resultEl.innerHTML = `<span class="text-danger fw-semibold">❌ 연결 실패 — ${err.message}</span>`;
+  }
+}
+async function saveCarInfoSettings() {
+  const key = (document.getElementById('key-car_info').value || '').trim();
+  const api_url = (document.getElementById('url-car_info').value || '').trim();
+  if (!key && !api_url) return toast('API 키 또는 URL을 입력하세요.', 'warning');
+  const payload = {api_url};
+  if (key) payload.api_key = key;
+  const d = await post('/admin/car-info/settings', payload);
+  if (d.ok) {
+    document.getElementById('key-car_info').value = '';
+    setTimeout(() => location.reload(), 700);
+  }
+}
+async function clearCarInfoKey() {
+  if (!confirm('차량정보 API 인증키를 삭제할까요?')) return;
+  const d = await post('/admin/car-info/settings', {clear_key: '1'});
+  if (d.ok) setTimeout(() => location.reload(), 500);
+}
+async function testCarInfo() {
+  const resultEl = document.getElementById('carInfoTestResult');
+  resultEl.innerHTML = '<span class="text-muted">테스트 중…</span>';
+  try {
+    const r = await fetch('/admin/car-info/test', {method: 'POST'});
+    const d = await r.json();
+    if (d.ok) {
+      resultEl.innerHTML = `<span class="text-success fw-semibold">✅ ${d.detail || '연결 성공'}</span>`;
+      toast('차량정보 API 연결 성공', 'success');
+    } else {
+      resultEl.innerHTML = `<span class="text-danger fw-semibold">❌ ${d.error || '연결 실패'}</span>`;
+      toast('차량정보 API 연결 실패', 'danger');
+    }
+  } catch (err) {
+    resultEl.innerHTML = `<span class="text-danger fw-semibold">❌ ${err.message}</span>`;
   }
 }
 async function testLLM(provider) {

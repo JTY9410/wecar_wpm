@@ -161,6 +161,29 @@
     return `<span class="${cls}">${arrow} ${Math.abs(n)}%</span>`;
   }
 
+  function renderGridRows(rows) {
+    if (!rows || !rows.length) {
+      g("grid").innerHTML = `<tr><td colspan="14" class="text-center text-muted py-4">${esc(t("no_results"))}</td></tr>`;
+      return;
+    }
+    g("grid").innerHTML = rows.map((x) => `<tr>
+      <td>${esc(lbl(x, "maker"))}</td>
+      <td>${esc(lbl(x, "model_name"))}</td>
+      <td>${esc(lbl(x, "mdetail_name"))}</td>
+      <td>${esc(lbl(x, "grade_name"))}</td>
+      <td class="small">${esc(lbl(x, "gdetail_name"))}</td>
+      <td>${esc(lbl(x, "fuel"))}</td>
+      <td>${esc(x.awd)}</td>
+      <td>${esc(x.is_accident_free)}</td>
+      <td>${esc(x.car_year)}</td>
+      <td>${esc(x.km_bin)}</td>
+      <td class="fw-semibold text-end price-cell">${x.hammer_avg != null ? Number(x.hammer_avg).toLocaleString() + " " + esc(unit()) : "-"}</td>
+      <td>${momBadge(x.wow_pct ?? x.mom_pct)}</td>
+      <td>${x.sample_count || 0}</td>
+      <td class="text-nowrap">${rowActions(x)}</td>
+    </tr>`).join("");
+  }
+
   g("f-export").onclick = () => {
     const f = filters();
     window.location.href = "/api/export/grid?" + qs(f);
@@ -173,31 +196,80 @@
     try {
       const r = await fetch("/api/grid?" + qs(f));
       const rows = await r.json();
-      if (!rows.length) {
-        g("grid").innerHTML = `<tr><td colspan="14" class="text-center text-muted py-4">${esc(t("no_results"))}</td></tr>`;
-        return;
-      }
-      g("grid").innerHTML = rows.map((x) => `<tr>
-        <td>${esc(lbl(x, "maker"))}</td>
-        <td>${esc(lbl(x, "model_name"))}</td>
-        <td>${esc(lbl(x, "mdetail_name"))}</td>
-        <td>${esc(lbl(x, "grade_name"))}</td>
-        <td class="small">${esc(lbl(x, "gdetail_name"))}</td>
-        <td>${esc(lbl(x, "fuel"))}</td>
-        <td>${esc(x.awd)}</td>
-        <td>${esc(x.is_accident_free)}</td>
-        <td>${esc(x.car_year)}</td>
-        <td>${esc(x.km_bin)}</td>
-        <td class="fw-semibold text-end price-cell">${x.hammer_avg != null ? Number(x.hammer_avg).toLocaleString() + " " + esc(unit()) : "-"}</td>
-        <td>${momBadge(x.wow_pct ?? x.mom_pct)}</td>
-        <td>${x.sample_count || 0}</td>
-        <td class="text-nowrap">${rowActions(x)}</td>
-      </tr>`).join("");
+      renderGridRows(rows);
     } catch (e) {
       g("grid").innerHTML = `<tr><td colspan="14" class="text-center text-danger py-4">${esc(t("search_fail"))}</td></tr>`;
       toast(t("search_fail"), "danger");
     }
   };
+
+  function setMarketMode(mode) {
+    const trim = mode !== "plate";
+    g("modeTrim").classList.toggle("d-none", !trim);
+    g("modePlate").classList.toggle("d-none", trim);
+    g("tab-trim").classList.toggle("active", trim);
+    g("tab-plate").classList.toggle("active", !trim);
+    g("matrixPanel").classList.add("d-none");
+    if (trim) {
+      g("grid").innerHTML = `<tr><td colspan="14" class="text-center text-muted py-5">${esc(t("select_maker"))}</td></tr>`;
+    } else {
+      g("grid").innerHTML = `<tr><td colspan="14" class="text-center text-muted py-5">${esc(t("plate_hint"))}</td></tr>`;
+    }
+  }
+
+  document.querySelectorAll("#marketModeTabs [data-mode]").forEach((btn) => {
+    btn.addEventListener("click", () => setMarketMode(btn.getAttribute("data-mode")));
+  });
+
+  async function searchByPlate() {
+    const carNo = (g("plateCarNo").value || "").replace(/\s+/g, "");
+    if (!carNo) return toast(t("plate_need_no"), "warning");
+    g("grid").innerHTML = `<tr><td colspan="14" class="text-center py-4 text-muted">${esc(t("searching"))}</td></tr>`;
+    g("plateInfoCard").classList.add("d-none");
+    try {
+      const r = await fetch("/api/lookup/plate?" + qs({ car_no: carNo }));
+      const data = await r.json();
+      if (!data.ok) {
+        g("grid").innerHTML = `<tr><td colspan="14" class="text-center text-danger py-4">${esc(data.error || t("search_fail"))}</td></tr>`;
+        toast(data.error || t("search_fail"), "danger");
+        return;
+      }
+      const diag = (data.mapping && data.mapping.diag) || {};
+      const map = data.mapping || {};
+      g("plateTitle").textContent = [diag.company, diag.model, diag.subgrade || diag.grade].filter(Boolean).join(" ") || carNo;
+      g("plateBadge").textContent = data.cached ? t("plate_cached") : t("plate_live");
+      g("plateMeta").innerHTML = [
+        [t("plate_vin"), diag.vin],
+        [t("year"), diag.year],
+        [t("fuel"), diag.fuel],
+        [t("plate_color"), diag.color],
+        [t("plate_registered"), diag.registered_date],
+        [t("plate_new_price"), diag.new_price_manwon != null ? `${Number(diag.new_price_manwon).toLocaleString()} ${t("unit_man")}` : null],
+      ].filter(([, v]) => v != null && v !== "").map(([k, v]) =>
+        `<div class="col-6 col-md-4"><span class="text-muted">${esc(k)}</span><div class="fw-semibold">${esc(v)}</div></div>`
+      ).join("");
+      g("plateMappingPath").textContent = map.path
+        ? `${t("plate_mapped")}: ${map.path}`
+        : t("plate_unmapped");
+      const notes = map.notes || [];
+      if (notes.length) {
+        g("plateNotes").textContent = notes.join(" · ");
+        g("plateNotes").classList.remove("d-none");
+      } else {
+        g("plateNotes").classList.add("d-none");
+      }
+      g("plateInfoCard").classList.remove("d-none");
+      renderGridRows(data.rows || []);
+    } catch (e) {
+      g("grid").innerHTML = `<tr><td colspan="14" class="text-center text-danger py-4">${esc(t("search_fail"))}</td></tr>`;
+      toast(t("search_fail"), "danger");
+    }
+  }
+
+  g("plateSearch").onclick = searchByPlate;
+  g("plateCarNo").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") searchByPlate();
+  });
 
   async function renderMatrix(params) {
     const panel = g("matrixPanel");

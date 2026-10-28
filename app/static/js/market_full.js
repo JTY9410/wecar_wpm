@@ -127,6 +127,18 @@
   }
 
   g("fullSearch").addEventListener("click", search);
+  g("fullExport").addEventListener("click", () => {
+    const weekFrom = g("weekFrom").value;
+    const weekTo = g("weekTo").value;
+    if (!weekFrom || !weekTo) {
+      g("fullGrid").innerHTML =
+        `<tr><td colspan="11" class="text-center text-muted py-5">${esc(t("pick_weeks"))}</td></tr>`;
+      return;
+    }
+    window.location.href = `/market/api/export/full-grid?${qs({
+      week_from: weekFrom, week_to: weekTo, q: g("qWord").value, ...filters(),
+    })}`;
+  });
   g("qWord").addEventListener("keydown", (e) => {
     if (e.key === "Enter") search();
   });

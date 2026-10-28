@@ -93,6 +93,11 @@ class Config:
     INTEGRATION_MODE = os.getenv("INTEGRATION_MODE", "standalone")
     TRUST_PROXY = os.getenv("TRUST_PROXY", "0") == "1"
     CAR2_CODES_BASE_URL = os.getenv("CAR2_CODES_BASE_URL", "http://host.docker.internal:8080")
+    # 위카 차량정보(번호조회) API — 관리자 UI에서 덮어쓸 수 있음
+    WECAR_CAR_INFO_AUTHKEY = os.getenv("WECAR_CAR_INFO_AUTHKEY", "")
+    WECAR_CAR_INFO_URL = os.getenv(
+        "WECAR_CAR_INFO_URL", "https://diag.wecarmobility.co.kr/api/get_car_info"
+    )
 
     @classmethod
     def ensure_dirs(cls):

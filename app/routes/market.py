@@ -3,8 +3,8 @@ import logging
 from flask import Blueprint, jsonify, render_template, request, send_file, session
 from flask_login import login_required
 
-from app.services import llm_hub, market_query
-from app.services.excel_export import export_grid_excel
+from app.services import car_info_api, diag_trim_resolve, llm_hub, market_query
+from app.services.excel_export import export_full_grid_excel, export_grid_excel
 from app.services.i18n_translate import load_pack
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,31 @@ def index():
         makers=market_query.makers(lang=lang),
         i18n=load_pack(lang),
         lang=lang,
+        car_info_configured=car_info_api.is_configured(),
     )
+
+
+@market_bp.route("/api/lookup/plate", methods=["GET", "POST"])
+@login_required
+def lookup_plate():
+    car_no = ""
+    if request.method == "POST":
+        if request.is_json and isinstance(request.json, dict):
+            car_no = request.json.get("car_no") or ""
+        else:
+            car_no = request.form.get("car_no") or ""
+    else:
+        car_no = request.args.get("car_no") or ""
+    car_no = str(car_no).strip()
+    if not car_no:
+        return jsonify({
+            "ok": False,
+            "error": "차량번호를 입력하세요.",
+            "car_info_configured": car_info_api.is_configured(),
+        }), 400
+    result = diag_trim_resolve.lookup_plate_market(car_no, lang=_lang())
+    status = 200 if result.get("ok") else 400
+    return jsonify(result), status
 
 
 @market_bp.route("/api/cascade/models")
@@ -223,5 +247,22 @@ def export_grid():
         buf,
         as_attachment=True,
         download_name="wholesale_market_grid.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+@market_bp.route("/market/api/export/full-grid")
+@login_required
+def export_full_grid():
+    week_from = (request.args.get("week_from") or "").strip()
+    week_to = (request.args.get("week_to") or "").strip()
+    if not week_from or not week_to:
+        return jsonify({"ok": False, "error": "경매차수 시작과 끝을 선택해주세요."}), 400
+    buf = export_full_grid_excel(request.args)
+    name = f"wholesale_full_market_{week_from}_{week_to}.xlsx".replace("/", "-")
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=name,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
