@@ -579,6 +579,70 @@ def users_revoke(user_id):
     return jsonify({"ok": True, "user_id": user.id, "is_approved": False})
 
 
+def _admin_count():
+    from app.models import User
+    return db.session.scalar(db.select(db.func.count()).select_from(User).where(User.role == "ADMIN"))
+
+
+@admin_bp.route("/users/<int:user_id>", methods=["PATCH"])
+@login_required
+@admin_required
+def users_update(user_id):
+    from app.models import User
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"ok": False, "error": "사용자를 찾을 수 없습니다."}), 404
+    data = request.get_json(silent=True) or request.form
+    if "username" in data:
+        username = (data.get("username") or "").strip()
+        if not username:
+            return jsonify({"ok": False, "error": "아이디를 입력해주세요."}), 400
+        taken = db.session.execute(
+            db.select(User).where(User.username == username, User.id != user.id)
+        ).scalar_one_or_none()
+        if taken:
+            return jsonify({"ok": False, "error": "이미 사용 중인 아이디입니다."}), 400
+        user.username = username
+    if "name" in data:
+        user.name = (data.get("name") or "").strip() or None
+    if "phone" in data:
+        user.phone = (data.get("phone") or "").strip() or None
+    if "affiliation" in data:
+        user.affiliation = (data.get("affiliation") or "").strip() or None
+    if "role" in data:
+        role = (data.get("role") or "").strip().upper()
+        if role not in ("USER", "ADMIN"):
+            return jsonify({"ok": False, "error": "권한은 USER 또는 ADMIN만 가능합니다."}), 400
+        if user.is_admin and role != "ADMIN":
+            if user.id == current_user.id:
+                return jsonify({"ok": False, "error": "본인 관리자 권한은 변경할 수 없습니다."}), 400
+            if (_admin_count() or 0) <= 1:
+                return jsonify({"ok": False, "error": "마지막 관리자 권한은 변경할 수 없습니다."}), 400
+        user.role = role
+    password = data.get("password") if hasattr(data, "get") else None
+    if password:
+        user.set_password(password)
+    db.session.commit()
+    return jsonify({"ok": True, "user_id": user.id, "username": user.username})
+
+
+@admin_bp.route("/users/<int:user_id>", methods=["DELETE"])
+@login_required
+@admin_required
+def users_delete(user_id):
+    from app.models import User
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"ok": False, "error": "사용자를 찾을 수 없습니다."}), 404
+    if user.id == current_user.id:
+        return jsonify({"ok": False, "error": "본인 계정은 삭제할 수 없습니다."}), 400
+    if user.is_admin and (_admin_count() or 0) <= 1:
+        return jsonify({"ok": False, "error": "마지막 관리자는 삭제할 수 없습니다."}), 400
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify({"ok": True, "user_id": user_id})
+
+
 @admin_bp.route("/ai-learning")
 @login_required
 @admin_required

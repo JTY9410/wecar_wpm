@@ -2,8 +2,9 @@
   [UI Flow]
   1. Auth: admin
   2. Data: GET /admin/users → users[] · POST /admin/users → {ok, user_id}
-  3. States: list | empty | add modal | error toast
-  4. Actions: 회원 추가 → 목록 새로고침 / 승인·철회
+     PATCH /admin/users/:id → {ok} · DELETE /admin/users/:id → {ok}
+  3. States: list | empty | add modal | row edit | error toast
+  4. Actions: 회원 추가 / 수정·저장·삭제 / 승인·철회
 -->
 {% extends "base.html" %}
 {% block title %}회원 관리 - {{ config.APP_NAME }}{% endblock %}
@@ -74,32 +75,40 @@
           <th>권한</th>
           <th>승인</th>
           <th>가입일</th>
-          <th></th>
+          <th>작업</th>
         </tr>
       </thead>
       <tbody>
         {% for u in users %}
-        <tr data-id="{{ u.id }}">
-          <td class="fw-semibold">{{ u.username }}</td>
-          <td>{{ u.name or '-' }}</td>
-          <td>{{ u.phone or '-' }}</td>
-          <td>{{ u.affiliation or '-' }}</td>
-          <td><span class="badge text-bg-{{ 'danger' if u.is_admin else 'secondary' }}">{{ u.role }}</span></td>
+        <tr data-id="{{ u.id }}"
+            data-username="{{ (u.username or '')|e }}"
+            data-name="{{ (u.name or '')|e }}"
+            data-phone="{{ (u.phone or '')|e }}"
+            data-affiliation="{{ (u.affiliation or '')|e }}"
+            data-role="{{ u.role }}">
+          <td class="fw-semibold" data-field="username">{{ u.username }}</td>
+          <td data-field="name">{{ u.name or '-' }}</td>
+          <td data-field="phone">{{ u.phone or '-' }}</td>
+          <td data-field="affiliation">{{ u.affiliation or '-' }}</td>
+          <td data-field="role"><span class="badge text-bg-{{ 'danger' if u.is_admin else 'secondary' }}">{{ u.role }}</span></td>
           <td>
             <span class="badge text-bg-{{ 'success' if u.is_approved else 'warning' }} approve-label">
               {{ '승인' if u.is_approved else '미승인' }}
             </span>
           </td>
           <td class="small text-muted">{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '-' }}</td>
-          <td class="text-end">
+          <td class="text-end text-nowrap">
+            <button type="button" class="btn btn-sm btn-outline-primary edit-btn">수정</button>
+            <button type="button" class="btn btn-sm btn-primary save-btn d-none">저장</button>
+            {% if u.id != current_user.id %}
+            <button type="button" class="btn btn-sm btn-outline-danger delete-btn">삭제</button>
+            {% endif %}
             {% if not u.is_admin %}
             {% if u.is_approved %}
             <button type="button" class="btn btn-sm btn-outline-warning revoke-btn">승인 취소</button>
             {% else %}
             <button type="button" class="btn btn-sm btn-primary approve-btn">승인</button>
             {% endif %}
-            {% else %}
-            <span class="text-muted small">—</span>
             {% endif %}
           </td>
         </tr>
@@ -150,13 +159,88 @@
     }
   });
 })();
+function startRowEdit(row) {
+  if (row.classList.contains('is-editing')) return;
+  row.classList.add('is-editing');
+  const editBtn = row.querySelector('.edit-btn');
+  const saveBtn = row.querySelector('.save-btn');
+  if (editBtn) editBtn.classList.add('d-none');
+  if (saveBtn) saveBtn.classList.remove('d-none');
+  ['username', 'name', 'phone', 'affiliation'].forEach((key) => {
+    const cell = row.querySelector(`[data-field="${key}"]`);
+    if (!cell) return;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'form-control form-control-sm edit-input';
+    input.dataset.key = key;
+    input.value = row.dataset[key] || '';
+    cell.replaceChildren(input);
+  });
+  const roleCell = row.querySelector('[data-field="role"]');
+  if (roleCell) {
+    const sel = document.createElement('select');
+    sel.className = 'form-select form-select-sm edit-input';
+    sel.dataset.key = 'role';
+    [['USER', 'USER (일반)'], ['ADMIN', 'ADMIN (관리자)']].forEach(([value, label]) => {
+      const opt = document.createElement('option');
+      opt.value = value;
+      opt.textContent = label;
+      if ((row.dataset.role || 'USER') === value) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    roleCell.replaceChildren(sel);
+  }
+}
+
 document.getElementById('userTable').addEventListener('click', async (e) => {
   const row = e.target.closest('tr[data-id]');
   if (!row) return;
   const id = row.dataset.id;
+  if (e.target.closest('.edit-btn')) {
+    startRowEdit(row);
+    return;
+  }
+  if (e.target.closest('.save-btn')) {
+    const payload = {};
+    row.querySelectorAll('.edit-input').forEach((el) => { payload[el.dataset.key] = el.value; });
+    try {
+      const r = await fetch(`/admin/users/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        toast('저장했습니다.', 'success');
+        location.reload();
+      } else {
+        toast(data.error || '저장 실패', 'danger');
+      }
+    } catch (err) {
+      toast('네트워크 오류', 'danger');
+    }
+    return;
+  }
+  if (e.target.closest('.delete-btn')) {
+    if (!window.confirm('이 회원을 삭제할까요?')) return;
+    try {
+      const r = await fetch(`/admin/users/${id}`, { method: 'DELETE', credentials: 'same-origin' });
+      const data = await r.json();
+      if (data.ok) {
+        toast('삭제했습니다.', 'success');
+        location.reload();
+      } else {
+        toast(data.error || '삭제 실패', 'danger');
+      }
+    } catch (err) {
+      toast('네트워크 오류', 'danger');
+    }
+    return;
+  }
   let url = null;
-  if (e.target.classList.contains('approve-btn')) url = `/admin/users/${id}/approve`;
-  if (e.target.classList.contains('revoke-btn')) url = `/admin/users/${id}/revoke`;
+  if (e.target.closest('.approve-btn')) url = `/admin/users/${id}/approve`;
+  if (e.target.closest('.revoke-btn')) url = `/admin/users/${id}/revoke`;
   if (!url) return;
   try {
     const r = await fetch(url, { method: 'POST' });

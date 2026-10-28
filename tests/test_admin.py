@@ -178,8 +178,8 @@ def test_nginx_buffers_upload_body():
 def test_service_worker_cache_bumped(client):
     js = client.get("/service-worker.js").get_data(as_text=True)
     assert "wecar-wpm-v1" not in js
-    assert "wecar-wpm-v4" not in js
-    assert "wecar-wpm-v5" in js
+    assert "wecar-wpm-v5" not in js
+    assert "wecar-wpm-v6" in js
 
 
 def test_admin_dashboard_upload_js_handles_gateway_errors(client):
@@ -302,3 +302,92 @@ def test_user_cannot_create_user(app, client):
     login(client, username="dealer3", password="pw")
     resp = client.post("/admin/users", json={"username": "x", "password": "y"})
     assert resp.status_code == 403
+
+
+def test_users_page_has_action_column(client):
+    login(client)
+    html = client.get("/admin/users").get_data(as_text=True)
+    assert ">작업<" in html
+    assert "edit-btn" in html
+    assert "save-btn" in html
+    assert "delete-btn" in html
+    assert 'data-field="name"' in html
+    assert 'data-field="phone"' in html
+    assert 'data-field="role"' in html
+
+
+def test_admin_can_update_user(app, client):
+    login(client)
+    with app.app_context():
+        u = User(username="editme", role="USER", is_approved=True, name="old")
+        u.set_password("pw")
+        db.session.add(u)
+        db.session.commit()
+        uid = u.id
+    resp = client.patch(f"/admin/users/{uid}", json={
+        "username": "editme2",
+        "name": "새이름",
+        "phone": "010-9999-0000",
+        "affiliation": "위카",
+        "role": "USER",
+    })
+    assert resp.status_code == 200
+    assert resp.get_json()["ok"] is True
+    with app.app_context():
+        u = db.session.get(User, uid)
+        assert u.username == "editme2"
+        assert u.name == "새이름"
+        assert u.phone == "010-9999-0000"
+        assert u.affiliation == "위카"
+
+
+def test_admin_update_user_rejects_unknown_role(app, client):
+    login(client)
+    with app.app_context():
+        u = User(username="badupd", role="USER", is_approved=True)
+        u.set_password("pw")
+        db.session.add(u)
+        db.session.commit()
+        uid = u.id
+    resp = client.patch(f"/admin/users/{uid}", json={"role": "SUPER"})
+    assert resp.status_code == 400
+    assert resp.get_json()["ok"] is False
+
+
+def test_admin_can_delete_user(app, client):
+    login(client)
+    with app.app_context():
+        u = User(username="gone", role="USER", is_approved=True)
+        u.set_password("pw")
+        db.session.add(u)
+        db.session.commit()
+        uid = u.id
+    resp = client.delete(f"/admin/users/{uid}")
+    assert resp.status_code == 200
+    assert resp.get_json()["ok"] is True
+    with app.app_context():
+        assert db.session.get(User, uid) is None
+
+
+def test_admin_cannot_delete_self(app, client):
+    login(client)
+    with app.app_context():
+        me = db.session.execute(db.select(User).where(User.username == "wecar")).scalar_one()
+        uid = me.id
+    resp = client.delete(f"/admin/users/{uid}")
+    assert resp.status_code == 400
+    assert resp.get_json()["ok"] is False
+
+
+def test_user_cannot_update_or_delete_user(app, client):
+    with app.app_context():
+        target = User(username="victim", role="USER", is_approved=True)
+        target.set_password("pw")
+        actor = User(username="dealer4", role="USER", is_approved=True)
+        actor.set_password("pw")
+        db.session.add_all([target, actor])
+        db.session.commit()
+        tid = target.id
+    login(client, username="dealer4", password="pw")
+    assert client.patch(f"/admin/users/{tid}", json={"name": "x"}).status_code == 403
+    assert client.delete(f"/admin/users/{tid}").status_code == 403
