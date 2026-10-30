@@ -26,8 +26,12 @@ def test_accident_free_flag(app, db, mini):
     process_weekly_upload(mini, week_no="2026-W29", mode="append")
     sonata = db.session.execute(db.select(AuctionRecord).where(AuctionRecord.car_name == "현대 쏘나타 디 엣지")).scalar_one_or_none()
     assert sonata.is_accident_free is True
+    assert sonata.accident_grade == "무사고"
+    assert sonata.km_bin == "9만~10만km"
     grandeur = db.session.execute(db.select(AuctionRecord).where(AuctionRecord.car_name == "현대 그랜저HG 300")).scalar_one_or_none()
     assert grandeur.is_accident_free is False  # 골격판금 + 교환/판금 존재
+    assert grandeur.accident_grade == "골격판금"
+    assert grandeur.km_bin == "17만~18만km"
 
 
 def test_overwrite_replaces_week(app, db, mini):

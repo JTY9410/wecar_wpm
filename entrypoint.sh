@@ -43,6 +43,9 @@ flask db upgrade
 echo "[entrypoint] seeding admin account..."
 flask seed-admin
 
+echo "[entrypoint] reclassifying auction km/accident grades..."
+flask reclassify-market || echo "[entrypoint] reclassify-market skipped/failed"
+
 echo "[entrypoint] starting gunicorn on :5000 (non-root)..."
 exec gunicorn --bind 0.0.0.0:5000 \
   --worker-class gthread --workers 2 --threads 4 \

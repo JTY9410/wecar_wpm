@@ -13,7 +13,7 @@ import openpyxl
 
 from app.extensions import db
 from app.models import AuctionRecord, MarketSummary, VehiclePriceTable
-from app.services.accident import is_accident_free
+from app.services.accident import classify_accident
 from app.services.awd_utils import normalize_awd
 from app.services.car_code import build_car_code, extract_grade_gdetail
 from app.services.fuel_utils import normalize_fuel
@@ -47,7 +47,7 @@ REQUIRED = ["auction_date", "maker", "car_name", "car_year", "car_km", "hammer_p
 
 GROUP_KEYS = [
     "maker", "model_name", "mdetail_name", "grade_name", "gdetail_name",
-    "car_year", "fuel", "awd", "is_accident_free", "imported", "km_bin",
+    "car_year", "fuel", "awd", "accident_grade", "is_accident_free", "imported", "km_bin",
 ]
 
 
@@ -192,7 +192,7 @@ def _row_to_auction_mapping(row, cols, index_by_name, week_no, xx_name, w_name):
         xx = None
     if _is_na(w):
         w = None
-    acc_free = is_accident_free(acc_detail, xx, w)
+    acc_grade, acc_free = classify_accident(acc_detail, xx, w)
 
     model = kind or model_name
     mdetail = model_name or model
@@ -232,6 +232,7 @@ def _row_to_auction_mapping(row, cols, index_by_name, week_no, xx_name, w_name):
         ),
         "hammer_price": hammer,
         "accident_detail": acc_detail,
+        "accident_grade": acc_grade,
         "xx_exchange": _clean_str(xx) if xx is not None else None,
         "w_panel": _clean_str(w) if w is not None else None,
         "is_accident_free": acc_free,
@@ -404,6 +405,7 @@ def rebuild_market_summary(week_no):
             "awd": m["awd"],
             "imported": m["imported"],
             "is_accident_free": bool(m["is_accident_free"]),
+            "accident_grade": m["accident_grade"],
             "km_bin": m["km_bin"],
             "start_avg": _safe_float(m["start_avg"]),
             "hammer_avg": _safe_float(cur),

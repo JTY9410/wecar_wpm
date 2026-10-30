@@ -179,7 +179,8 @@ def test_service_worker_cache_bumped(client):
     js = client.get("/service-worker.js").get_data(as_text=True)
     assert "wecar-wpm-v1" not in js
     assert "wecar-wpm-v6" not in js
-    assert "wecar-wpm-v7" in js
+    assert "wecar-wpm-v7" not in js
+    assert "wecar-wpm-v8" in js
 
 
 def test_admin_dashboard_upload_js_handles_gateway_errors(client):

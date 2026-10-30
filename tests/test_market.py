@@ -46,6 +46,14 @@ def test_grid_api_ok(app, client, tmp_path):
     assert isinstance(resp.get_json(), list)
 
 
+def test_grid_car_name_search(app, db, tmp_path):
+    _load(app, tmp_path)
+    rows = market_query.grid(car_name="쏘나타")
+    assert rows
+    assert all("쏘나타" in (r.get("car_name") or "") or "쏘나타" in (r.get("model_name") or "") for r in rows)
+    assert all(r.get("accident_grade") for r in rows)
+
+
 def test_price_trend_and_forecast_calc(app, tmp_path):
     with app.app_context():
         process_weekly_upload(build(str(tmp_path / "w28.xlsx")), week_no="2026-W28", mode="reset")

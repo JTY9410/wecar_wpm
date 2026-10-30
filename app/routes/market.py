@@ -150,12 +150,14 @@ def grid():
     return jsonify(market_query.grid(
         maker=request.args.get("maker"),
         model_name=request.args.get("model_name"),
-        mdetail_name=request.args.get("mdetail_name") or request.args.get("car_name"),
+        mdetail_name=request.args.get("mdetail_name"),
+        car_name=request.args.get("car_name") or request.args.get("q"),
         grade_name=request.args.get("grade_name"),
         gdetail_name=request.args.get("gdetail_name"),
         car_year=request.args.get("car_year"),
         fuel=request.args.get("fuel"),
         awd=request.args.get("awd"),
+        q=request.args.get("q"),
         lang=_lang(),
     ))
 

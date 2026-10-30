@@ -15,7 +15,7 @@ def test_business_constants():
     assert Config.SYNC_HOURS == [9, 13, 18]
     assert Config.RATE_LIMIT_DAILY == 20
     assert Config.API_TIMEOUT == 120
-    assert Config.KM_BUCKET_STEP == 15000
+    assert Config.KM_BUCKET_STEP == 10000
 
 
 def test_rejects_leaked_or_empty_secret_key():

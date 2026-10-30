@@ -7,9 +7,9 @@
 <!--
   [UI Flow]
   1. Auth: login
-  2. Data: cascade grid · POST/GET /api/lookup/plate
-  3. States: trim search | plate search | matrix | samples
-  4. Actions: 1.세부등급조회 · 2.차량번호조회 → 시세 그리드
+  2. Data: GET /api/grid?car_name=… · cascade (상세검색)
+  3. States: car-name search | advanced | empty toast | grid
+  4. Actions: 1.세부등급조회 · 2.차량번호조회
 -->
 <script>
   window.I18N = {{ i18n|tojson }};
@@ -28,8 +28,20 @@
 
 <div id="modeTrim">
 <div class="glass-card p-3 mb-3">
-  <p class="small text-muted mb-2 mb-md-3">{{ i18n.hammer_avg }} · {{ i18n.unit_man }}</p>
+  <p class="small text-muted mb-2">{{ i18n.hammer_avg }} · {{ i18n.unit_man }} · {{ i18n.car_name_search_hint }}</p>
   <div class="row g-2 align-items-end">
+    <div class="col-12 col-md-6 col-lg-5">
+      <label class="form-label small mb-1" for="f-car-name">{{ i18n.car_name }}</label>
+      <input type="search" id="f-car-name" class="form-control" placeholder="{{ i18n.car_name_ph }}" autocomplete="off">
+    </div>
+    <div class="col-auto d-flex gap-2 flex-wrap">
+      <button id="f-search" type="button" class="btn btn-primary px-3">{{ i18n.search }}</button>
+      <button id="f-advanced-toggle" type="button" class="btn btn-outline-secondary px-3" aria-expanded="false">{{ i18n.advanced_search }}</button>
+      <button id="f-matrix" type="button" class="btn btn-outline-primary px-3">{{ i18n.matrix }}</button>
+      <button id="f-export" type="button" class="btn btn-outline-secondary px-3">{{ i18n.export_excel }}</button>
+    </div>
+  </div>
+  <div id="advancedFilters" class="row g-2 align-items-end mt-2 d-none border-top pt-3">
     <div class="col-6 col-md">
       <label class="form-label small mb-1">{{ i18n.maker }}</label>
       <select id="f-maker" class="form-select"><option value="">—</option>
@@ -67,11 +79,6 @@
         <option value="2WD">2WD</option>
         <option value="미확인">{{ '미확인'|tr }}</option>
       </select>
-    </div>
-    <div class="col-auto d-flex gap-2 flex-wrap">
-      <button id="f-search" class="btn btn-primary px-3">{{ i18n.search }}</button>
-      <button id="f-matrix" class="btn btn-outline-primary px-3">{{ i18n.matrix }}</button>
-      <button id="f-export" type="button" class="btn btn-outline-secondary px-3">{{ i18n.export_excel }}</button>
     </div>
   </div>
 </div>
@@ -117,16 +124,11 @@
     <table class="table align-middle mb-0 market-grid-table">
       <thead>
         <tr>
-          <th class="col-maker">{{ i18n.maker }}</th>
-          <th class="col-model">{{ i18n.model }}</th>
-          <th class="col-mdetail">{{ i18n.mdetail }}</th>
-          <th class="col-grade">{{ i18n.grade }}</th>
-          <th class="col-gdetail">{{ i18n.gdetail }}</th>
-          <th class="col-fuel">{{ i18n.fuel }}</th>
-          <th class="col-awd">{{ i18n.awd }}</th>
-          <th class="col-accident">{{ i18n.accident }}</th>
+          <th class="col-car-name">{{ i18n.car_name }}</th>
           <th class="col-year">{{ i18n.year }}</th>
+          <th class="col-fuel">{{ i18n.fuel }}</th>
           <th class="col-km">{{ i18n.km_bin }}</th>
+          <th class="col-accident">{{ i18n.accident_grade }}</th>
           <th class="col-price">{{ i18n.hammer_avg }}</th>
           <th class="col-mom">{{ i18n.mom }}</th>
           <th class="col-count">{{ i18n.sample_count }}</th>
@@ -134,7 +136,7 @@
         </tr>
       </thead>
       <tbody id="grid">
-        <tr><td colspan="14" class="text-center text-muted py-5">{{ i18n.select_maker }}</td></tr>
+        <tr><td colspan="9" class="text-center text-muted py-5">{{ i18n.car_name_hint }}</td></tr>
       </tbody>
     </table>
   </div>
@@ -142,7 +144,6 @@
 {% endblock %}
 
 {% block scripts %}
-{# 모달은 content 밖(scripts)에서 렌더해 overflow clipping 방지 #}
 <div class="modal fade bp-samples-modal" id="bpSamplesModal" tabindex="-1" aria-labelledby="bpSamplesModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable modal-fullscreen-md-down">
     <div class="modal-content">
@@ -172,8 +173,9 @@
                   <th>{{ i18n.awd }}</th>
                   <th>{{ i18n.km_bin }}</th>
                   <th class="text-end">{{ i18n.hammer_price }}</th>
-                  <th>{{ i18n.accident }}</th>
-                  <th>{{ i18n.imported }}</th>
+                  <th>{{ i18n.accident_grade }}</th>
+                  <th>{{ i18n.xx_exchange }}</th>
+                  <th>{{ i18n.w_panel }}</th>
                   <th>{{ i18n.auction_date }}</th>
                 </tr>
               </thead>
@@ -230,5 +232,5 @@
     </div>
   </div>
 </div>
-<script src="{{ url_for('static', filename='js/market.js') }}?v=7"></script>
+<script src="{{ url_for('static', filename='js/market.js') }}?v=8"></script>
 {% endblock %}

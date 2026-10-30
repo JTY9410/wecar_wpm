@@ -1,4 +1,4 @@
-"""주행거리 15,000km 단위 구간화 (PRD §5.2)."""
+"""주행거리 10,000km 단위 구간화 (시세 GAP 반영)."""
 import math
 
 from config import Config

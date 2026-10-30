@@ -211,9 +211,10 @@ def create_app(config_class=Config):
         user = seed_admin(app)
         print(f"seeded admin: {user.username} ({user.role})")
 
-    from app.cli import sync_listings_cmd, train_models_cmd
+    from app.cli import reclassify_market_cmd, sync_listings_cmd, train_models_cmd
     app.cli.add_command(sync_listings_cmd)
     app.cli.add_command(train_models_cmd)
+    app.cli.add_command(reclassify_market_cmd)
 
     # Prefer a dedicated scheduler process/container (ENABLE_SCHEDULER=0 on web).
     if app.config.get("ENABLE_SCHEDULER"):

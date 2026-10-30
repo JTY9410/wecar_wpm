@@ -47,3 +47,16 @@ def train_models_cmd() -> None:
     rf = PriceModel().train()
     hedonic = HedonicModel().train()
     click.echo(f"train={rf} hedonic={hedonic}")
+
+
+@click.command("reclassify-market")
+@with_appcontext
+def reclassify_market_cmd() -> None:
+    """Recompute accident_grade + 10k km bins and rebuild market_summary."""
+    from app.services.reclassify_market import reclassify_auction_records
+
+    result = reclassify_auction_records()
+    click.echo(
+        f"reclassify OK: total={result.get('total')} updated={result.get('updated')} "
+        f"summaries={result.get('summaries')} week={result.get('week_no')}"
+    )

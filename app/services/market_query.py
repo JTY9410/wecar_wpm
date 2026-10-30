@@ -31,6 +31,13 @@ def _accident_label(is_free, lang="ko"):
     return pack.get("accident_damaged", "사고차")
 
 
+def _accident_grade_label(grade, is_free, lang="ko"):
+    text = _clean(grade)
+    if text:
+        return text
+    return _accident_label(is_free, lang)
+
+
 def _labeled(values, lang="ko"):
     """필터 value는 한국어 원문 유지, label만 번역.
 
@@ -134,8 +141,8 @@ def fuels(maker=None, lang="ko"):
 
 
 def _filter_summary(stmt, maker=None, model_name=None, mdetail_name=None, grade_name=None,
-                    gdetail_name=None, car_year=None, fuel=None, awd=None, km_bin=None,
-                    is_accident_free=None):
+                    gdetail_name=None, car_name=None, car_year=None, fuel=None, awd=None,
+                    km_bin=None, is_accident_free=None, accident_grade=None, q=None):
     if maker:
         stmt = stmt.where(MarketSummary.maker == maker)
     if model_name:
@@ -146,6 +153,15 @@ def _filter_summary(stmt, maker=None, model_name=None, mdetail_name=None, grade_
         stmt = stmt.where(MarketSummary.grade_name == grade_name)
     if gdetail_name:
         stmt = stmt.where(MarketSummary.gdetail_name == gdetail_name)
+    word = (car_name or q or "").strip()
+    if word:
+        like = f"%{word}%"
+        stmt = stmt.where(db.or_(
+            MarketSummary.car_name.ilike(like),
+            MarketSummary.model_name.ilike(like),
+            MarketSummary.mdetail_name.ilike(like),
+            MarketSummary.gdetail_name.ilike(like),
+        ))
     if car_year not in (None, "") and _safe_int(car_year) is not None:
         stmt = stmt.where(MarketSummary.car_year == _safe_int(car_year))
     if fuel:
@@ -154,6 +170,8 @@ def _filter_summary(stmt, maker=None, model_name=None, mdetail_name=None, grade_
         stmt = stmt.where(MarketSummary.awd == awd)
     if km_bin:
         stmt = stmt.where(MarketSummary.km_bin == km_bin)
+    if accident_grade:
+        stmt = stmt.where(MarketSummary.accident_grade == accident_grade)
     if is_accident_free is not None:
         stmt = stmt.where(MarketSummary.is_accident_free == bool(is_accident_free))
     return stmt
@@ -161,11 +179,12 @@ def _filter_summary(stmt, maker=None, model_name=None, mdetail_name=None, grade_
 
 def grid(maker=None, model_name=None, mdetail_name=None, car_name=None,
          car_year=None, fuel=None, awd=None, grade_name=None, gdetail_name=None,
-         lang="ko"):
+         q=None, lang="ko"):
     stmt = _filter_summary(
         db.select(MarketSummary), maker=maker, model_name=model_name,
-        mdetail_name=mdetail_name or car_name, grade_name=grade_name,
-        gdetail_name=gdetail_name, car_year=car_year, fuel=fuel, awd=awd,
+        mdetail_name=mdetail_name, grade_name=grade_name,
+        gdetail_name=gdetail_name, car_name=car_name, q=q,
+        car_year=car_year, fuel=fuel, awd=awd,
     )
     stmt = (
         stmt.where(
@@ -184,26 +203,31 @@ def grid(maker=None, model_name=None, mdetail_name=None, car_name=None,
     # value 필드는 한국어 원문(후속 필터/샘플 API용), *_label 은 화면 표시용 번역.
     result = []
     for r in rows:
-        maker = _clean(r.maker)
-        model_name = _clean(r.model_name)
-        mdetail_name = _clean(r.mdetail_name)
-        grade_name = _clean(r.grade_name)
-        gdetail_name = _clean(r.gdetail_name)
-        car_name = _clean(r.car_name)
-        fuel = _clean(r.fuel)
+        mk = _clean(r.maker)
+        md = _clean(r.model_name)
+        mt = _clean(r.mdetail_name)
+        gr = _clean(r.grade_name)
+        gd = _clean(r.gdetail_name)
+        cn = _clean(r.car_name)
+        fl = _clean(r.fuel)
+        grade = _accident_grade_label(
+            getattr(r, "accident_grade", None), r.is_accident_free, lang,
+        )
         result.append({
             "car_code": _clean(r.car_code),
-            "maker": maker, "maker_label": _tr(maker),
-            "model_name": model_name, "model_name_label": _tr(model_name),
-            "mdetail_name": mdetail_name, "mdetail_name_label": _tr(mdetail_name),
-            "grade_name": grade_name, "grade_name_label": _tr(grade_name),
-            "gdetail_name": gdetail_name, "gdetail_name_label": _tr(gdetail_name),
-            "car_name": car_name, "car_name_label": _tr(car_name),
+            "maker": mk, "maker_label": _tr(mk),
+            "model_name": md, "model_name_label": _tr(md),
+            "mdetail_name": mt, "mdetail_name_label": _tr(mt),
+            "grade_name": gr, "grade_name_label": _tr(gr),
+            "gdetail_name": gd, "gdetail_name_label": _tr(gd),
+            "car_name": cn, "car_name_label": _tr(cn),
             "car_year": r.car_year,
-            "fuel": fuel, "fuel_label": _tr(fuel),
+            "fuel": fl, "fuel_label": _tr(fl),
             "awd": _clean(r.awd),
             "imported": _clean(r.imported),
-            "is_accident_free": _accident_label(r.is_accident_free, lang),
+            "accident_grade": grade,
+            "accident_grade_label": _tr(grade) if grade else grade,
+            "is_accident_free": grade if grade else _accident_label(r.is_accident_free, lang),
             "is_accident_free_flag": bool(r.is_accident_free),
             "km_bin": _clean(r.km_bin), "start_avg": r.start_avg, "hammer_avg": r.hammer_avg,
             "wow_pct": r.mom_pct, "mom_pct": r.mom_pct,  # mom_pct=전주대비(%) alias
@@ -333,7 +357,9 @@ def samples(maker=None, model_name=None, mdetail_name=None, grade_name=None,
 
     items = []
     for r in rows:
-        acc = _accident_label(r.is_accident_free, lang)
+        grade = _accident_grade_label(
+            getattr(r, "accident_grade", None), r.is_accident_free, lang,
+        )
         detail = _tr(_clean(r.accident_detail) or "")
         items.append({
             "id": r.id,
@@ -352,8 +378,11 @@ def samples(maker=None, model_name=None, mdetail_name=None, grade_name=None,
             "hope_price": r.hope_price,
             "hammer_price": r.hammer_price,
             "imported": _clean(r.imported),
-            "accident_status": acc,
+            "accident_status": grade,
+            "accident_grade": grade,
             "accident_detail": detail,
+            "xx_exchange": _clean(r.xx_exchange),
+            "w_panel": _clean(r.w_panel),
             "auction_date": _clean(r.auction_date),
             "week_no": _clean(r.week_no),
         })

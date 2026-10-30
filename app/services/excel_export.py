@@ -7,8 +7,8 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from app.services import market_query
 
 GRID_HEADERS = [
-    "카코드", "제조사", "모델", "세부모델", "등급", "세부등급", "차량명",
-    "년식", "유종", "AWD", "사고여부", "주행구간",
+    "카코드", "제조사", "모델", "세부모델", "등급", "세부등급", "차명",
+    "년식", "유종", "AWD", "사고등급", "주행구간",
     "시작가평균", "낙찰가평균", "전주대비(%)", "표본수", "주차",
 ]
 
@@ -51,12 +51,14 @@ def export_grid_excel(args) -> io.BytesIO:
     rows = market_query.grid(
         maker=args.get("maker"),
         model_name=args.get("model_name"),
-        mdetail_name=args.get("mdetail_name") or args.get("car_name"),
+        mdetail_name=args.get("mdetail_name"),
+        car_name=args.get("car_name") or args.get("q"),
         grade_name=args.get("grade_name"),
         gdetail_name=args.get("gdetail_name"),
         car_year=args.get("car_year"),
         fuel=args.get("fuel"),
         awd=args.get("awd"),
+        q=args.get("q"),
         lang="ko",
     )
     values = [
@@ -71,7 +73,7 @@ def export_grid_excel(args) -> io.BytesIO:
             r.get("car_year"),
             r.get("fuel"),
             r.get("awd"),
-            r.get("is_accident_free"),
+            r.get("accident_grade") or r.get("is_accident_free"),
             r.get("km_bin"),
             r.get("start_avg"),
             r.get("hammer_avg"),

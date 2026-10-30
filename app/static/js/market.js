@@ -52,6 +52,7 @@
 
   function filters() {
     return {
+      car_name: (g("f-car-name") && g("f-car-name").value || "").trim(),
       maker: g("f-maker").value,
       model_name: g("f-model").value,
       mdetail_name: g("f-mdetail").value,
@@ -61,6 +62,10 @@
       fuel: g("f-fuel").value,
       awd: g("f-awd").value,
     };
+  }
+
+  function hasSearchCriteria(f) {
+    return !!(f.car_name || f.maker || f.model_name || f.mdetail_name || f.grade_name || f.gdetail_name);
   }
 
   function qs(obj) {
@@ -143,7 +148,7 @@
       grade_name: x.grade_name, gdetail_name: x.gdetail_name,
       car_year: x.car_year, km_bin: x.km_bin, fuel: x.fuel, awd: x.awd,
       accident_free: x.is_accident_free_flag ? "1" : "0",
-      title: [lbl(x, "maker"), lbl(x, "model_name"), lbl(x, "gdetail_name"), x.car_year, x.km_bin]
+      title: [lbl(x, "car_name") || x.car_name, x.car_year, x.km_bin, x.accident_grade]
         .filter(Boolean).join(" · "),
     };
     return `<div class="btn-group btn-group-sm flex-wrap">
@@ -163,20 +168,19 @@
 
   function renderGridRows(rows) {
     if (!rows || !rows.length) {
-      g("grid").innerHTML = `<tr><td colspan="14" class="text-center text-muted py-4">${esc(t("no_results"))}</td></tr>`;
+      g("grid").innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4">${esc(t("no_results"))}</td></tr>`;
+      toast(t("no_results"), "warning");
       return;
     }
     g("grid").innerHTML = rows.map((x) => `<tr>
-      <td>${esc(lbl(x, "maker"))}</td>
-      <td>${esc(lbl(x, "model_name"))}</td>
-      <td>${esc(lbl(x, "mdetail_name"))}</td>
-      <td>${esc(lbl(x, "grade_name"))}</td>
-      <td class="small">${esc(lbl(x, "gdetail_name"))}</td>
-      <td>${esc(lbl(x, "fuel"))}</td>
-      <td>${esc(x.awd)}</td>
-      <td>${esc(x.is_accident_free)}</td>
-      <td>${esc(x.car_year)}</td>
-      <td>${esc(x.km_bin)}</td>
+      <td>
+        <div class="fw-semibold">${esc(lbl(x, "car_name") || x.car_name || "-")}</div>
+        <div class="small text-muted">${esc([lbl(x, "maker"), lbl(x, "model_name"), lbl(x, "gdetail_name")].filter(Boolean).join(" · "))}</div>
+      </td>
+      <td>${esc(x.car_year ?? "-")}</td>
+      <td>${esc(lbl(x, "fuel") || "-")}</td>
+      <td>${esc(x.km_bin || "-")}</td>
+      <td>${esc(x.accident_grade || x.is_accident_free || "-")}</td>
       <td class="fw-semibold text-end price-cell">${x.hammer_avg != null ? Number(x.hammer_avg).toLocaleString() + " " + esc(unit()) : "-"}</td>
       <td>${momBadge(x.wow_pct ?? x.mom_pct)}</td>
       <td>${x.sample_count || 0}</td>
@@ -186,22 +190,38 @@
 
   g("f-export").onclick = () => {
     const f = filters();
+    if (!hasSearchCriteria(f)) return toast(t("car_name_hint"), "warning");
     window.location.href = "/api/export/grid?" + qs(f);
   };
 
-  g("f-search").onclick = async () => {
+  g("f-advanced-toggle").onclick = () => {
+    const box = g("advancedFilters");
+    const open = box.classList.toggle("d-none") === false;
+    g("f-advanced-toggle").setAttribute("aria-expanded", open ? "true" : "false");
+    g("f-advanced-toggle").classList.toggle("active", open);
+  };
+
+  async function runTrimSearch() {
     const f = filters();
-    if (!f.maker) return toast(t("select_maker"), "warning");
-    g("grid").innerHTML = `<tr><td colspan="14" class="text-center py-4 text-muted">${esc(t("searching"))}</td></tr>`;
+    if (!hasSearchCriteria(f)) {
+      toast(t("car_name_hint"), "warning");
+      return;
+    }
+    g("grid").innerHTML = `<tr><td colspan="9" class="text-center py-4 text-muted">${esc(t("searching"))}</td></tr>`;
     try {
       const r = await fetch("/api/grid?" + qs(f));
       const rows = await r.json();
       renderGridRows(rows);
     } catch (e) {
-      g("grid").innerHTML = `<tr><td colspan="14" class="text-center text-danger py-4">${esc(t("search_fail"))}</td></tr>`;
+      g("grid").innerHTML = `<tr><td colspan="9" class="text-center text-danger py-4">${esc(t("search_fail"))}</td></tr>`;
       toast(t("search_fail"), "danger");
     }
-  };
+  }
+
+  g("f-search").onclick = runTrimSearch;
+  g("f-car-name").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") runTrimSearch();
+  });
 
   function setMarketMode(mode) {
     const trim = mode !== "plate";
@@ -211,9 +231,9 @@
     g("tab-plate").classList.toggle("active", !trim);
     g("matrixPanel").classList.add("d-none");
     if (trim) {
-      g("grid").innerHTML = `<tr><td colspan="14" class="text-center text-muted py-5">${esc(t("select_maker"))}</td></tr>`;
+      g("grid").innerHTML = `<tr><td colspan="9" class="text-center text-muted py-5">${esc(t("car_name_hint"))}</td></tr>`;
     } else {
-      g("grid").innerHTML = `<tr><td colspan="14" class="text-center text-muted py-5">${esc(t("plate_hint"))}</td></tr>`;
+      g("grid").innerHTML = `<tr><td colspan="9" class="text-center text-muted py-5">${esc(t("plate_hint"))}</td></tr>`;
     }
   }
 
@@ -224,13 +244,13 @@
   async function searchByPlate() {
     const carNo = (g("plateCarNo").value || "").replace(/\s+/g, "");
     if (!carNo) return toast(t("plate_need_no"), "warning");
-    g("grid").innerHTML = `<tr><td colspan="14" class="text-center py-4 text-muted">${esc(t("searching"))}</td></tr>`;
+    g("grid").innerHTML = `<tr><td colspan="9" class="text-center py-4 text-muted">${esc(t("searching"))}</td></tr>`;
     g("plateInfoCard").classList.add("d-none");
     try {
       const r = await fetch("/api/lookup/plate?" + qs({ car_no: carNo }));
       const data = await r.json();
       if (!data.ok) {
-        g("grid").innerHTML = `<tr><td colspan="14" class="text-center text-danger py-4">${esc(data.error || t("search_fail"))}</td></tr>`;
+        g("grid").innerHTML = `<tr><td colspan="9" class="text-center text-danger py-4">${esc(data.error || t("search_fail"))}</td></tr>`;
         toast(data.error || t("search_fail"), "danger");
         return;
       }
@@ -261,7 +281,7 @@
       g("plateInfoCard").classList.remove("d-none");
       renderGridRows(data.rows || []);
     } catch (e) {
-      g("grid").innerHTML = `<tr><td colspan="14" class="text-center text-danger py-4">${esc(t("search_fail"))}</td></tr>`;
+      g("grid").innerHTML = `<tr><td colspan="9" class="text-center text-danger py-4">${esc(t("search_fail"))}</td></tr>`;
       toast(t("search_fail"), "danger");
     }
   }
@@ -364,8 +384,9 @@
           <td>${esc(item.awd || "-")}</td>
           <td>${item.car_km != null ? Number(item.car_km).toLocaleString() + "km" : esc(item.km_bin || "-")}</td>
           <td class="text-end fw-bold">${item.hammer_price != null ? Number(item.hammer_price).toLocaleString() : "-"}</td>
-          <td>${esc(item.accident_status || "-")}</td>
-          <td>${esc(item.imported || "-")}</td>
+          <td>${esc(item.accident_grade || item.accident_status || "-")}</td>
+          <td class="small">${esc(item.xx_exchange || "-")}</td>
+          <td class="small">${esc(item.w_panel || "-")}</td>
           <td class="small">${esc(item.auction_date || "-")}</td>
         </tr>`;
       }).join("");

@@ -15,7 +15,7 @@ BUILTIN_SPECS: list[dict[str, Any]] = [
         "name": "KM구간",
         "description": "경매 주행거리를 km 구간(step/max)으로 분류합니다.",
         "category": "ingest",
-        "default_params": {"step": 15000, "max": 200000},
+        "default_params": {"step": 10000, "max": 200000},
         "sort_order": 10,
     },
     {
