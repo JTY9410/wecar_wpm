@@ -1,7 +1,7 @@
 """차량번호조회 · 오토업→시세 매핑 · 관리자 API 키."""
 
 from app.extensions import db
-from app.models import MarketSummary
+from app.models import AuctionRecord, MarketSummary
 from app.services import car_info_api, diag_trim_resolve
 from tests.conftest import login
 
@@ -35,6 +35,14 @@ def _seed_summary(app):
             car_year=2020, fuel="가솔린", km_bin="3~4.5만",
             hammer_avg=2550, sample_count=2, week_no="2026-W30",
             is_accident_free=True,
+        ))
+        db.session.add(AuctionRecord(
+            week_no="2026-W30", auction_date="2026-07-28",
+            maker="현대", model_name="그랜저", mdetail_name="그랜저 IG",
+            grade_name="가솔린 2.5", gdetail_name="익스클루시브",
+            car_name="현대 그랜저 IG 익스클루시브",
+            car_year=2020, fuel="가솔린", km_bin="3~4.5만",
+            hammer_price=2550, accident_grade="무사고", is_accident_free=True,
         ))
         db.session.commit()
 

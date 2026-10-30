@@ -18,14 +18,14 @@
       <label class="form-label small mb-1" for="weekFrom">{{ i18n.week_from }}</label>
       <select id="weekFrom" class="form-select">
         <option value="">—</option>
-        {% for w in weeks %}<option value="{{ w }}">{{ w }}</option>{% endfor %}
+        {% for w in weeks %}<option value="{{ w.value }}">{{ w.label }}</option>{% endfor %}
       </select>
     </div>
     <div class="col-6 col-md-2">
       <label class="form-label small mb-1" for="weekTo">{{ i18n.week_to }}</label>
       <select id="weekTo" class="form-select">
         <option value="">—</option>
-        {% for w in weeks %}<option value="{{ w }}">{{ w }}</option>{% endfor %}
+        {% for w in weeks %}<option value="{{ w.value }}">{{ w.label }}</option>{% endfor %}
       </select>
     </div>
     <div class="col-6 col-md">
@@ -93,5 +93,5 @@
 </div>
 {% endblock %}
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/market_full.js') }}?v=2"></script>
+<script src="{{ url_for('static', filename='js/market_full.js') }}?v=3"></script>
 {% endblock %}

@@ -110,10 +110,17 @@ def test_healthz(client):
 def test_export_grid_ok(client, db):
     _seed_auction(db)
     login(client)
-    resp = client.get("/api/export/grid?maker=현대")
+    resp = client.get("/api/export/grid?maker=현대&week_from=2026-W29&week_to=2026-W30")
     assert resp.status_code == 200
     assert "spreadsheet" in (resp.mimetype or "")
     assert resp.data[:2] == b"PK"
+
+
+def test_export_grid_requires_weeks(client, db):
+    _seed_auction(db)
+    login(client)
+    resp = client.get("/api/export/grid?maker=현대")
+    assert resp.status_code == 400
 
 
 def test_briefing_build(app, db):

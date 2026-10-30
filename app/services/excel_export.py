@@ -58,6 +58,8 @@ def export_grid_excel(args) -> io.BytesIO:
         car_year=args.get("car_year"),
         fuel=args.get("fuel"),
         awd=args.get("awd"),
+        week_from=args.get("week_from"),
+        week_to=args.get("week_to"),
         q=args.get("q"),
         lang="ko",
     )

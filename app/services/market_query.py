@@ -179,28 +179,94 @@ def _filter_summary(stmt, maker=None, model_name=None, mdetail_name=None, grade_
 
 def grid(maker=None, model_name=None, mdetail_name=None, car_name=None,
          car_year=None, fuel=None, awd=None, grade_name=None, gdetail_name=None,
-         q=None, lang="ko"):
-    stmt = _filter_summary(
-        db.select(MarketSummary), maker=maker, model_name=model_name,
-        mdetail_name=mdetail_name, grade_name=grade_name,
-        gdetail_name=gdetail_name, car_name=car_name, q=q,
-        car_year=car_year, fuel=fuel, awd=awd,
-    )
+         week_from=None, week_to=None, q=None, lang="ko", limit=500):
+    """경매차수 구간 낙찰 집계. week_from/to 없으면 최신 차수(내부·번호조회용)."""
+    wf = (week_from or "").strip() or None
+    wt = (week_to or "").strip() or None
+    if wf and wt:
+        selected = _weeks_in_range(wf, wt)
+    else:
+        nos = _week_nos()
+        selected = [nos[-1]] if nos else []
+    if not selected:
+        return []
+
     stmt = (
-        stmt.where(
-            MarketSummary.hammer_avg.isnot(None),
-            MarketSummary.hammer_avg > 0,
+        db.select(
+            AuctionRecord.maker,
+            AuctionRecord.model_name,
+            AuctionRecord.mdetail_name,
+            AuctionRecord.grade_name,
+            AuctionRecord.gdetail_name,
+            AuctionRecord.car_name,
+            AuctionRecord.car_year,
+            AuctionRecord.fuel,
+            AuctionRecord.awd,
+            AuctionRecord.imported,
+            AuctionRecord.accident_grade,
+            AuctionRecord.is_accident_free,
+            AuctionRecord.km_bin,
+            db.func.avg(AuctionRecord.start_price).label("start_avg"),
+            db.func.avg(AuctionRecord.hammer_price).label("hammer_avg"),
+            db.func.count().label("sample_count"),
         )
-        .order_by(MarketSummary.car_year.desc(), MarketSummary.km_bin)
-        .limit(500)
+        .where(
+            AuctionRecord.hammer_price.isnot(None),
+            AuctionRecord.hammer_price > 0,
+            AuctionRecord.week_no.in_(selected),
+        )
+        .group_by(
+            AuctionRecord.maker,
+            AuctionRecord.model_name,
+            AuctionRecord.mdetail_name,
+            AuctionRecord.grade_name,
+            AuctionRecord.gdetail_name,
+            AuctionRecord.car_name,
+            AuctionRecord.car_year,
+            AuctionRecord.fuel,
+            AuctionRecord.awd,
+            AuctionRecord.imported,
+            AuctionRecord.accident_grade,
+            AuctionRecord.is_accident_free,
+            AuctionRecord.km_bin,
+        )
     )
-    rows = db.session.execute(stmt).scalars().all()
+    if maker:
+        stmt = stmt.where(AuctionRecord.maker == maker)
+    if model_name:
+        stmt = stmt.where(AuctionRecord.model_name == model_name)
+    if mdetail_name:
+        stmt = stmt.where(AuctionRecord.mdetail_name == mdetail_name)
+    if grade_name:
+        stmt = stmt.where(AuctionRecord.grade_name == grade_name)
+    if gdetail_name:
+        stmt = stmt.where(AuctionRecord.gdetail_name == gdetail_name)
+    if car_year not in (None, "") and _safe_int(car_year) is not None:
+        stmt = stmt.where(AuctionRecord.car_year == _safe_int(car_year))
+    if fuel:
+        stmt = stmt.where(AuctionRecord.fuel == fuel)
+    if awd:
+        stmt = stmt.where(AuctionRecord.awd == awd)
+    word = (car_name or q or "").strip()
+    if word:
+        like = f"%{word}%"
+        stmt = stmt.where(db.or_(
+            AuctionRecord.car_name.ilike(like),
+            AuctionRecord.model_name.ilike(like),
+            AuctionRecord.mdetail_name.ilike(like),
+            AuctionRecord.gdetail_name.ilike(like),
+        ))
+
+    stmt = stmt.order_by(
+        AuctionRecord.car_year.desc(),
+        AuctionRecord.km_bin,
+    ).limit(limit)
+    rows = db.session.execute(stmt).all()
 
     def _tr(value):
-        # polish=False: 그리드 N건마다 Gemini를 부르면 워커 타임아웃 발생
         return translate(value, lang, polish=False) if value and lang != "ko" else value
 
-    # value 필드는 한국어 원문(후속 필터/샘플 API용), *_label 은 화면 표시용 번역.
+    week_label = selected[0] if len(selected) == 1 else f"{selected[0]}~{selected[-1]}"
     result = []
     for r in rows:
         mk = _clean(r.maker)
@@ -213,8 +279,10 @@ def grid(maker=None, model_name=None, mdetail_name=None, car_name=None,
         grade = _accident_grade_label(
             getattr(r, "accident_grade", None), r.is_accident_free, lang,
         )
+        hammer = round(float(r.hammer_avg), 1) if r.hammer_avg is not None else None
+        start = round(float(r.start_avg), 1) if r.start_avg is not None else None
         result.append({
-            "car_code": _clean(r.car_code),
+            "car_code": None,
             "maker": mk, "maker_label": _tr(mk),
             "model_name": md, "model_name_label": _tr(md),
             "mdetail_name": mt, "mdetail_name_label": _tr(mt),
@@ -229,10 +297,14 @@ def grid(maker=None, model_name=None, mdetail_name=None, car_name=None,
             "accident_grade_label": _tr(grade) if grade else grade,
             "is_accident_free": grade if grade else _accident_label(r.is_accident_free, lang),
             "is_accident_free_flag": bool(r.is_accident_free),
-            "km_bin": _clean(r.km_bin), "start_avg": r.start_avg, "hammer_avg": r.hammer_avg,
-            "wow_pct": r.mom_pct, "mom_pct": r.mom_pct,  # mom_pct=전주대비(%) alias
-            "sample_count": r.sample_count, "week_no": _clean(r.week_no),
-            "note": _tr(_clean(r.note)),
+            "km_bin": _clean(r.km_bin),
+            "start_avg": start,
+            "hammer_avg": hammer,
+            "wow_pct": None,
+            "mom_pct": None,
+            "sample_count": int(r.sample_count or 0),
+            "week_no": week_label,
+            "note": None,
         })
     return result
 
@@ -432,7 +504,32 @@ def price_trend(maker=None, model_name=None, mdetail_name=None, grade_name=None,
     } for w in week_keys]
 
 
-def weeks():
+def _parse_auction_date(val):
+    """auction_date 문자열 → (month, day) 또는 None."""
+    if not val:
+        return None
+    text = str(val).strip()[:10]
+    if len(text) < 8:
+        return None
+    try:
+        from datetime import datetime
+        d = datetime.strptime(text, "%Y-%m-%d")
+        return d.month, d.day
+    except ValueError:
+        return None
+
+
+def format_week_label(week_no, auction_date=None) -> str:
+    """예: 2026-W27(7월7일)."""
+    if not week_no:
+        return ""
+    md = _parse_auction_date(auction_date)
+    if not md:
+        return str(week_no)
+    return f"{week_no}({md[0]}월{md[1]}일)"
+
+
+def _week_nos():
     rows = db.session.execute(
         db.select(AuctionRecord.week_no).distinct()
         .where(AuctionRecord.week_no.isnot(None))
@@ -441,8 +538,33 @@ def weeks():
     return [w for w in rows if w]
 
 
+def weeks():
+    """경매차수 목록 — [{value, label, auction_date}, ...] value=week_no, label에 일자."""
+    rows = db.session.execute(
+        db.select(
+            AuctionRecord.week_no,
+            db.func.min(AuctionRecord.auction_date).label("auction_date"),
+        )
+        .where(AuctionRecord.week_no.isnot(None))
+        .group_by(AuctionRecord.week_no)
+        .order_by(AuctionRecord.week_no)
+    ).all()
+    out = []
+    for r in rows:
+        week_no = _clean(r.week_no)
+        if not week_no:
+            continue
+        ad = _clean(r.auction_date)
+        out.append({
+            "value": week_no,
+            "label": format_week_label(week_no, ad),
+            "auction_date": ad,
+        })
+    return out
+
+
 def _weeks_in_range(week_from, week_to):
-    all_w = weeks()
+    all_w = _week_nos()
     if not all_w:
         return []
     wf = week_from or all_w[0]

@@ -7,8 +7,8 @@
 <!--
   [UI Flow]
   1. Auth: login
-  2. Data: GET /api/grid?car_name=… · cascade (상세검색)
-  3. States: car-name search | advanced | empty toast | grid
+  2. Data: GET /api/grid?week_from&week_to&car_name=… · cascade (상세검색)
+  3. States: pick weeks | car-name search | advanced | empty toast | grid
   4. Actions: 1.세부등급조회 · 2.차량번호조회
 -->
 <script>
@@ -30,7 +30,21 @@
 <div class="glass-card p-3 mb-3">
   <p class="small text-muted mb-2">{{ i18n.hammer_avg }} · {{ i18n.unit_man }} · {{ i18n.car_name_search_hint }}</p>
   <div class="row g-2 align-items-end">
-    <div class="col-12 col-md-6 col-lg-5">
+    <div class="col-6 col-md-3 col-lg-2">
+      <label class="form-label small mb-1" for="weekFrom">{{ i18n.week_from }}</label>
+      <select id="weekFrom" class="form-select" required>
+        <option value="">—</option>
+        {% for w in weeks %}<option value="{{ w.value }}">{{ w.label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+      <label class="form-label small mb-1" for="weekTo">{{ i18n.week_to }}</label>
+      <select id="weekTo" class="form-select" required>
+        <option value="">—</option>
+        {% for w in weeks %}<option value="{{ w.value }}">{{ w.label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
       <label class="form-label small mb-1" for="f-car-name">{{ i18n.car_name }}</label>
       <input type="search" id="f-car-name" class="form-control" placeholder="{{ i18n.car_name_ph }}" autocomplete="off">
     </div>
@@ -136,7 +150,7 @@
         </tr>
       </thead>
       <tbody id="grid">
-        <tr><td colspan="9" class="text-center text-muted py-5">{{ i18n.car_name_hint }}</td></tr>
+        <tr><td colspan="9" class="text-center text-muted py-5">{{ i18n.pick_weeks }} · {{ i18n.car_name_hint }}</td></tr>
       </tbody>
     </table>
   </div>
@@ -232,5 +246,5 @@
     </div>
   </div>
 </div>
-<script src="{{ url_for('static', filename='js/market.js') }}?v=8"></script>
+<script src="{{ url_for('static', filename='js/market.js') }}?v=9"></script>
 {% endblock %}

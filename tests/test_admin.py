@@ -180,7 +180,8 @@ def test_service_worker_cache_bumped(client):
     assert "wecar-wpm-v1" not in js
     assert "wecar-wpm-v6" not in js
     assert "wecar-wpm-v7" not in js
-    assert "wecar-wpm-v8" in js
+    assert "wecar-wpm-v8" not in js
+    assert "wecar-wpm-v9" in js
 
 
 def test_admin_dashboard_upload_js_handles_gateway_errors(client):

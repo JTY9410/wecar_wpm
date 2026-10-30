@@ -64,6 +64,7 @@ def index():
     return render_template(
         "market.html",
         makers=market_query.makers(lang=lang),
+        weeks=market_query.weeks(),
         i18n=load_pack(lang),
         lang=lang,
         car_info_configured=car_info_api.is_configured(),
@@ -147,6 +148,14 @@ def cascade_fuels():
 @market_bp.route("/api/grid")
 @login_required
 def grid():
+    week_from = (request.args.get("week_from") or "").strip()
+    week_to = (request.args.get("week_to") or "").strip()
+    if not week_from or not week_to:
+        pack = load_pack(_lang())
+        return jsonify({
+            "ok": False,
+            "error": pack.get("pick_weeks", "경매차수 시작과 끝을 선택하세요."),
+        }), 400
     return jsonify(market_query.grid(
         maker=request.args.get("maker"),
         model_name=request.args.get("model_name"),
@@ -157,6 +166,8 @@ def grid():
         car_year=request.args.get("car_year"),
         fuel=request.args.get("fuel"),
         awd=request.args.get("awd"),
+        week_from=week_from,
+        week_to=week_to,
         q=request.args.get("q"),
         lang=_lang(),
     ))
@@ -244,6 +255,14 @@ def samples():
 @market_bp.route("/api/export/grid")
 @login_required
 def export_grid():
+    week_from = (request.args.get("week_from") or "").strip()
+    week_to = (request.args.get("week_to") or "").strip()
+    if not week_from or not week_to:
+        pack = load_pack(_lang())
+        return jsonify({
+            "ok": False,
+            "error": pack.get("pick_weeks", "경매차수 시작과 끝을 선택하세요."),
+        }), 400
     buf = export_grid_excel(request.args)
     return send_file(
         buf,

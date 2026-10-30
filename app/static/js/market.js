@@ -52,6 +52,8 @@
 
   function filters() {
     return {
+      week_from: g("weekFrom") ? g("weekFrom").value : "",
+      week_to: g("weekTo") ? g("weekTo").value : "",
       car_name: (g("f-car-name") && g("f-car-name").value || "").trim(),
       maker: g("f-maker").value,
       model_name: g("f-model").value,
@@ -62,6 +64,10 @@
       fuel: g("f-fuel").value,
       awd: g("f-awd").value,
     };
+  }
+
+  function hasWeeks(f) {
+    return !!(f.week_from && f.week_to);
   }
 
   function hasSearchCriteria(f) {
@@ -190,6 +196,7 @@
 
   g("f-export").onclick = () => {
     const f = filters();
+    if (!hasWeeks(f)) return toast(t("pick_weeks"), "warning");
     if (!hasSearchCriteria(f)) return toast(t("car_name_hint"), "warning");
     window.location.href = "/api/export/grid?" + qs(f);
   };
@@ -203,6 +210,10 @@
 
   async function runTrimSearch() {
     const f = filters();
+    if (!hasWeeks(f)) {
+      toast(t("pick_weeks"), "warning");
+      return;
+    }
     if (!hasSearchCriteria(f)) {
       toast(t("car_name_hint"), "warning");
       return;
@@ -210,8 +221,13 @@
     g("grid").innerHTML = `<tr><td colspan="9" class="text-center py-4 text-muted">${esc(t("searching"))}</td></tr>`;
     try {
       const r = await fetch("/api/grid?" + qs(f));
-      const rows = await r.json();
-      renderGridRows(rows);
+      const data = await r.json();
+      if (!r.ok || (data && data.ok === false)) {
+        g("grid").innerHTML = `<tr><td colspan="9" class="text-center text-danger py-4">${esc((data && data.error) || t("search_fail"))}</td></tr>`;
+        toast((data && data.error) || t("pick_weeks"), "warning");
+        return;
+      }
+      renderGridRows(data);
     } catch (e) {
       g("grid").innerHTML = `<tr><td colspan="9" class="text-center text-danger py-4">${esc(t("search_fail"))}</td></tr>`;
       toast(t("search_fail"), "danger");
@@ -231,7 +247,7 @@
     g("tab-plate").classList.toggle("active", !trim);
     g("matrixPanel").classList.add("d-none");
     if (trim) {
-      g("grid").innerHTML = `<tr><td colspan="9" class="text-center text-muted py-5">${esc(t("car_name_hint"))}</td></tr>`;
+      g("grid").innerHTML = `<tr><td colspan="9" class="text-center text-muted py-5">${esc(t("pick_weeks"))} · ${esc(t("car_name_hint"))}</td></tr>`;
     } else {
       g("grid").innerHTML = `<tr><td colspan="9" class="text-center text-muted py-5">${esc(t("plate_hint"))}</td></tr>`;
     }

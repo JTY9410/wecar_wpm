@@ -1,4 +1,4 @@
-const CACHE_NAME = "wecar-wpm-v8";
+const CACHE_NAME = "wecar-wpm-v9";
 const PRECACHE = [
   "/",
   "/static/css/style.css",

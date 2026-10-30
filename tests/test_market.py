@@ -16,7 +16,7 @@ def test_cascade_and_grid(app, db, tmp_path):
     assert any(m["value"] == "현대" for m in makers)
     models = market_query.models("현대")
     assert models and all("value" in m and "label" in m for m in models)
-    rows = market_query.grid(maker="현대")
+    rows = market_query.grid(maker="현대", week_from="2026-W29", week_to="2026-W29")
     assert rows
     assert "km_bin" in rows[0] and "mom_pct" in rows[0]
     assert rows[0]["maker"] == "현대"
@@ -27,7 +27,7 @@ def test_cascade_and_grid_translated_labels(app, db, tmp_path):
     makers = market_query.makers(lang="en")
     hyundai = next(m for m in makers if m["value"] == "현대")
     assert hyundai["label"] == "Hyundai"
-    rows = market_query.grid(maker="현대", lang="en")
+    rows = market_query.grid(maker="현대", week_from="2026-W29", week_to="2026-W29", lang="en")
     assert rows[0]["maker"] == "현대"
     assert rows[0]["maker_label"] == "Hyundai"
     assert rows[0]["model_name_label"]  # translated display
@@ -41,14 +41,14 @@ def test_grid_api_requires_login(client):
 def test_grid_api_ok(app, client, tmp_path):
     _load(app, tmp_path)
     login(client)
-    resp = client.get("/api/grid?maker=현대")
+    resp = client.get("/api/grid?maker=현대&week_from=2026-W29&week_to=2026-W29")
     assert resp.status_code == 200
     assert isinstance(resp.get_json(), list)
 
 
 def test_grid_car_name_search(app, db, tmp_path):
     _load(app, tmp_path)
-    rows = market_query.grid(car_name="쏘나타")
+    rows = market_query.grid(car_name="쏘나타", week_from="2026-W29", week_to="2026-W29")
     assert rows
     assert all("쏘나타" in (r.get("car_name") or "") or "쏘나타" in (r.get("model_name") or "") for r in rows)
     assert all(r.get("accident_grade") for r in rows)

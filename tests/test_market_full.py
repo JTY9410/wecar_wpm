@@ -9,31 +9,31 @@ def _seed_range(app):
     with app.app_context():
         db.session.add_all([
             AuctionRecord(
-                week_no="2026-W28", maker="현대", model_name="그랜저",
+                week_no="2026-W28", auction_date="2026-07-14", maker="현대", model_name="그랜저",
                 mdetail_name="그랜저 IG", grade_name="가솔린 2.5", gdetail_name="익스클루시브",
                 hammer_price=2000, car_year=2020, km_bin="3~4.5만", fuel="가솔린",
                 is_accident_free=True,
             ),
             AuctionRecord(
-                week_no="2026-W29", maker="현대", model_name="그랜저",
+                week_no="2026-W29", auction_date="2026-07-21", maker="현대", model_name="그랜저",
                 mdetail_name="그랜저 IG", grade_name="가솔린 2.5", gdetail_name="익스클루시브",
                 hammer_price=2400, car_year=2020, km_bin="3~4.5만", fuel="가솔린",
                 is_accident_free=True,
             ),
             AuctionRecord(
-                week_no="2026-W30", maker="현대", model_name="그랜저",
+                week_no="2026-W30", auction_date="2026-07-28", maker="현대", model_name="그랜저",
                 mdetail_name="그랜저 IG", grade_name="가솔린 2.5", gdetail_name="익스클루시브",
                 hammer_price=2600, car_year=2020, km_bin="3~4.5만", fuel="가솔린",
                 is_accident_free=True,
             ),
             AuctionRecord(
-                week_no="2026-W30", maker="현대", model_name="그랜저",
+                week_no="2026-W30", auction_date="2026-07-28", maker="현대", model_name="그랜저",
                 mdetail_name="그랜저 IG", grade_name="가솔린 2.5", gdetail_name="익스클루시브",
                 hammer_price=1800, car_year=2020, km_bin="6~8만", fuel="가솔린",
                 is_accident_free=False,
             ),
             AuctionRecord(
-                week_no="2026-W30", maker="기아", model_name="K5",
+                week_no="2026-W30", auction_date="2026-07-28", maker="기아", model_name="K5",
                 mdetail_name="K5 DL3", grade_name="가솔린 1.6", gdetail_name="시그니처",
                 hammer_price=1500, car_year=2021, km_bin="3~4.5만", fuel="가솔린",
                 is_accident_free=True,
@@ -88,8 +88,12 @@ def test_weeks_and_full_grid_for_user(app, client):
     login(client, username="dealer_grid", password="pw")
     weeks = client.get("/market/api/weeks").get_json()
     assert weeks["ok"] is True
-    assert "2026-W29" in weeks["weeks"]
-    assert "2026-W30" in weeks["weeks"]
+    values = [
+        w["value"] if isinstance(w, dict) else w
+        for w in weeks["weeks"]
+    ]
+    assert "2026-W29" in values
+    assert "2026-W30" in values
 
     data = client.get("/market/api/full-grid", query_string={
         "week_from": "2026-W29",
