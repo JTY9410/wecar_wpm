@@ -47,6 +47,7 @@
   "plate_mapped": "相場マッピング",
   "plate_unmapped": "相場トリムへのマッピングに失敗しました。管理画面を確認してください。",
   "select_maker": "メーカーを選択してください。",
+  "matrix_need_criteria": "車名・メーカー・モデル名のいずれかを入力してください。",
   "no_results": "結果なし",
   "searching": "検索中…",
   "search_fail": "相場検索に失敗しました。",

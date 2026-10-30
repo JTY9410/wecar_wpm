@@ -47,6 +47,7 @@
   "plate_mapped": "Mapped trim",
   "plate_unmapped": "Could not map to a market trim — check admin mappings.",
   "select_maker": "Please select a maker.",
+  "matrix_need_criteria": "Enter a car name, maker, or model.",
   "no_results": "No results",
   "searching": "Searching…",
   "search_fail": "Market search failed.",

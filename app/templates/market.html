@@ -50,8 +50,8 @@
     </div>
     <div class="col-auto d-flex gap-2 flex-wrap">
       <button id="f-search" type="button" class="btn btn-primary px-3">{{ i18n.search }}</button>
-      <button id="f-advanced-toggle" type="button" class="btn btn-outline-secondary px-3" aria-expanded="false">{{ i18n.advanced_search }}</button>
       <button id="f-matrix" type="button" class="btn btn-outline-primary px-3">{{ i18n.matrix }}</button>
+      <button id="f-advanced-toggle" type="button" class="btn btn-outline-secondary px-3" aria-expanded="false">{{ i18n.advanced_search }}</button>
       <button id="f-export" type="button" class="btn btn-outline-secondary px-3">{{ i18n.export_excel }}</button>
     </div>
   </div>
@@ -86,12 +86,10 @@
       <select id="f-fuel" class="form-select" disabled><option value="">—</option></select>
     </div>
     <div class="col-6 col-md">
-      <label class="form-label small mb-1">{{ i18n.awd }}</label>
-      <select id="f-awd" class="form-select">
+      <label class="form-label small mb-1" for="f-km">{{ i18n.km_bin }}</label>
+      <select id="f-km" class="form-select">
         <option value="">—</option>
-        <option value="AWD">AWD</option>
-        <option value="2WD">2WD</option>
-        <option value="미확인">{{ '미확인'|tr }}</option>
+        {% for k in km_bins %}<option value="{{ k.value }}">{{ k.label }}</option>{% endfor %}
       </select>
     </div>
   </div>
@@ -246,5 +244,5 @@
     </div>
   </div>
 </div>
-<script src="{{ url_for('static', filename='js/market.js') }}?v=9"></script>
+<script src="{{ url_for('static', filename='js/market.js') }}?v=10"></script>
 {% endblock %}

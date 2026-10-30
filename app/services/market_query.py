@@ -178,8 +178,9 @@ def _filter_summary(stmt, maker=None, model_name=None, mdetail_name=None, grade_
 
 
 def grid(maker=None, model_name=None, mdetail_name=None, car_name=None,
-         car_year=None, fuel=None, awd=None, grade_name=None, gdetail_name=None,
-         week_from=None, week_to=None, q=None, lang="ko", limit=500):
+         car_year=None, fuel=None, awd=None, km_bin=None, grade_name=None,
+         gdetail_name=None, week_from=None, week_to=None, q=None, lang="ko",
+         limit=500):
     """경매차수 구간 낙찰 집계. week_from/to 없으면 최신 차수(내부·번호조회용)."""
     wf = (week_from or "").strip() or None
     wt = (week_to or "").strip() or None
@@ -247,6 +248,8 @@ def grid(maker=None, model_name=None, mdetail_name=None, car_name=None,
         stmt = stmt.where(AuctionRecord.fuel == fuel)
     if awd:
         stmt = stmt.where(AuctionRecord.awd == awd)
+    if km_bin:
+        stmt = stmt.where(AuctionRecord.km_bin == km_bin)
     word = (car_name or q or "").strip()
     if word:
         like = f"%{word}%"
@@ -309,18 +312,63 @@ def grid(maker=None, model_name=None, mdetail_name=None, car_name=None,
     return result
 
 
+def km_bins(week_from=None, week_to=None, maker=None, model_name=None, lang="ko"):
+    """상세검색용 주행구간(키로수) 목록."""
+    stmt = (
+        db.select(AuctionRecord.km_bin).distinct()
+        .where(
+            AuctionRecord.km_bin.isnot(None),
+            AuctionRecord.hammer_price.isnot(None),
+            AuctionRecord.hammer_price > 0,
+        )
+    )
+    wf = (week_from or "").strip() or None
+    wt = (week_to or "").strip() or None
+    if wf and wt:
+        selected = _weeks_in_range(wf, wt)
+        if selected:
+            stmt = stmt.where(AuctionRecord.week_no.in_(selected))
+    if maker:
+        stmt = stmt.where(AuctionRecord.maker == maker)
+    if model_name:
+        stmt = stmt.where(AuctionRecord.model_name == model_name)
+    rows = db.session.execute(stmt).scalars().all()
+
+    def _bin_sort_key(label):
+        m = re.search(r"([\d.]+)", str(label) or "")
+        return float(m.group(1)) if m else 0
+
+    values = sorted([_clean(v) for v in rows if v], key=_bin_sort_key)
+    return _labeled(values, lang)
+
+
 def matrix(maker=None, model_name=None, mdetail_name=None, grade_name=None,
-           gdetail_name=None, fuel=None, awd=None, accident_free=None):
-    """연식 × 주행구간 매트릭스 — 낙찰가(hammer_price) 평균."""
-    if not maker:
+           gdetail_name=None, car_name=None, car_year=None, fuel=None, awd=None,
+           km_bin=None, accident_free=None, week_from=None, week_to=None):
+    """연식 × 주행구간 매트릭스 — 낙찰가(hammer_price) 평균.
+
+    차량명·제조사·모델명 중 하나 이상 필요.
+    """
+    word = (car_name or "").strip()
+    if not (word or maker or model_name):
         return {"years": [], "buckets": [], "matrix": {}, "counts": {}, "total_samples": 0,
                 "price_basis": "hammer"}
 
     stmt = db.select(AuctionRecord).where(
         AuctionRecord.hammer_price.isnot(None),
         AuctionRecord.hammer_price > 0,
-        AuctionRecord.maker == maker,
     )
+    wf = (week_from or "").strip() or None
+    wt = (week_to or "").strip() or None
+    if wf and wt:
+        selected = _weeks_in_range(wf, wt)
+        if selected:
+            stmt = stmt.where(AuctionRecord.week_no.in_(selected))
+        else:
+            return {"years": [], "buckets": [], "matrix": {}, "counts": {}, "total_samples": 0,
+                    "price_basis": "hammer"}
+    if maker:
+        stmt = stmt.where(AuctionRecord.maker == maker)
     if model_name:
         stmt = stmt.where(AuctionRecord.model_name == model_name)
     if mdetail_name:
@@ -329,10 +377,22 @@ def matrix(maker=None, model_name=None, mdetail_name=None, grade_name=None,
         stmt = stmt.where(AuctionRecord.grade_name == grade_name)
     if gdetail_name:
         stmt = stmt.where(AuctionRecord.gdetail_name == gdetail_name)
+    if car_year not in (None, "") and _safe_int(car_year) is not None:
+        stmt = stmt.where(AuctionRecord.car_year == _safe_int(car_year))
     if fuel:
         stmt = stmt.where(AuctionRecord.fuel == fuel)
     if awd:
         stmt = stmt.where(AuctionRecord.awd == awd)
+    if km_bin:
+        stmt = stmt.where(AuctionRecord.km_bin == km_bin)
+    if word:
+        like = f"%{word}%"
+        stmt = stmt.where(db.or_(
+            AuctionRecord.car_name.ilike(like),
+            AuctionRecord.model_name.ilike(like),
+            AuctionRecord.mdetail_name.ilike(like),
+            AuctionRecord.gdetail_name.ilike(like),
+        ))
     if accident_free == "1":
         stmt = stmt.where(AuctionRecord.is_accident_free.is_(True))
     elif accident_free == "0":

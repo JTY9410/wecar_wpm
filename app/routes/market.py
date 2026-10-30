@@ -65,6 +65,7 @@ def index():
         "market.html",
         makers=market_query.makers(lang=lang),
         weeks=market_query.weeks(),
+        km_bins=market_query.km_bins(lang=lang),
         i18n=load_pack(lang),
         lang=lang,
         car_info_configured=car_info_api.is_configured(),
@@ -166,9 +167,22 @@ def grid():
         car_year=request.args.get("car_year"),
         fuel=request.args.get("fuel"),
         awd=request.args.get("awd"),
+        km_bin=request.args.get("km_bin"),
         week_from=week_from,
         week_to=week_to,
         q=request.args.get("q"),
+        lang=_lang(),
+    ))
+
+
+@market_bp.route("/api/cascade/km_bins")
+@login_required
+def cascade_km_bins():
+    return jsonify(market_query.km_bins(
+        week_from=request.args.get("week_from"),
+        week_to=request.args.get("week_to"),
+        maker=request.args.get("maker"),
+        model_name=request.args.get("model_name"),
         lang=_lang(),
     ))
 
@@ -182,9 +196,14 @@ def matrix():
         mdetail_name=request.args.get("mdetail_name"),
         grade_name=request.args.get("grade_name"),
         gdetail_name=request.args.get("gdetail_name"),
+        car_name=request.args.get("car_name") or request.args.get("q"),
+        car_year=request.args.get("car_year"),
         fuel=request.args.get("fuel"),
         awd=request.args.get("awd"),
+        km_bin=request.args.get("km_bin"),
         accident_free=request.args.get("accident_free"),
+        week_from=request.args.get("week_from"),
+        week_to=request.args.get("week_to"),
     ))
 
 

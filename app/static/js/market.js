@@ -55,14 +55,14 @@
       week_from: g("weekFrom") ? g("weekFrom").value : "",
       week_to: g("weekTo") ? g("weekTo").value : "",
       car_name: (g("f-car-name") && g("f-car-name").value || "").trim(),
-      maker: g("f-maker").value,
-      model_name: g("f-model").value,
-      mdetail_name: g("f-mdetail").value,
-      grade_name: g("f-grade").value,
-      gdetail_name: g("f-gdetail").value,
-      car_year: g("f-year").value,
-      fuel: g("f-fuel").value,
-      awd: g("f-awd").value,
+      maker: g("f-maker") ? g("f-maker").value : "",
+      model_name: g("f-model") ? g("f-model").value : "",
+      mdetail_name: g("f-mdetail") ? g("f-mdetail").value : "",
+      grade_name: g("f-grade") ? g("f-grade").value : "",
+      gdetail_name: g("f-gdetail") ? g("f-gdetail").value : "",
+      car_year: g("f-year") ? g("f-year").value : "",
+      fuel: g("f-fuel") ? g("f-fuel").value : "",
+      km_bin: g("f-km") ? g("f-km").value : "",
     };
   }
 
@@ -72,6 +72,23 @@
 
   function hasSearchCriteria(f) {
     return !!(f.car_name || f.maker || f.model_name || f.mdetail_name || f.grade_name || f.gdetail_name);
+  }
+
+  function hasMatrixCriteria(f) {
+    return !!(f.car_name || f.maker || f.model_name);
+  }
+
+  function refreshKmBins() {
+    const sel = g("f-km");
+    if (!sel) return;
+    const f = filters();
+    const prev = sel.value;
+    fill(sel, `/api/cascade/km_bins?${qs({
+      week_from: f.week_from, week_to: f.week_to,
+      maker: f.maker, model_name: f.model_name,
+    })}`).then(() => {
+      if (prev && [...sel.options].some((o) => o.value === prev)) sel.value = prev;
+    });
   }
 
   function qs(obj) {
@@ -128,13 +145,17 @@
       fill(g("f-model"), `/api/cascade/models?maker=${encodeURIComponent(g("f-maker").value)}`);
       fill(g("f-fuel"), `/api/cascade/fuels?maker=${encodeURIComponent(g("f-maker").value)}`);
     }
+    refreshKmBins();
   };
   g("f-model").onchange = () => {
     resetSelect(g("f-mdetail")); resetSelect(g("f-grade")); resetSelect(g("f-gdetail")); resetSelect(g("f-year"));
     if (g("f-model").value) {
       fill(g("f-mdetail"), `/api/cascade/car_names?${qs({ maker: g("f-maker").value, model_name: g("f-model").value })}`);
     }
+    refreshKmBins();
   };
+  if (g("weekFrom")) g("weekFrom").onchange = refreshKmBins;
+  if (g("weekTo")) g("weekTo").onchange = refreshKmBins;
   g("f-mdetail").onchange = () => {
     resetSelect(g("f-grade")); resetSelect(g("f-gdetail")); resetSelect(g("f-year"));
     if (g("f-mdetail").value) {
@@ -352,7 +373,8 @@
 
   g("f-matrix").onclick = () => {
     const f = filters();
-    if (!f.maker) return toast(t("select_maker"), "warning");
+    if (!hasWeeks(f)) return toast(t("pick_weeks"), "warning");
+    if (!hasMatrixCriteria(f)) return toast(t("matrix_need_criteria"), "warning");
     renderMatrix(f);
   };
 
