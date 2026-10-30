@@ -51,6 +51,9 @@ def test_market_page_primary_and_advanced_fields(app, client):
     assert 'id="advancedFilters"' in html
     assert 'id="f-maker"' in html
     assert 'id="f-model"' in html
+    # 제조사·모델명은 기본줄(상세검색 패널보다 앞)
+    assert html.index('id="f-maker"') < html.index('id="advancedFilters"')
+    assert html.index('id="f-model"') < html.index('id="advancedFilters"')
     assert 'id="f-mdetail"' in html
     assert 'id="f-grade"' in html
     assert 'id="f-gdetail"' in html

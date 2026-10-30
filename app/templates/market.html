@@ -7,8 +7,8 @@
 <!--
   [UI Flow]
   1. Auth: login
-  2. Data: GET /api/grid?week_from&week_to&car_name=… · cascade (상세검색)
-  3. States: pick weeks | car-name search | advanced | empty toast | grid
+  2. Data: GET /api/grid?week_from&week_to&maker&model&car_name=… · cascade (상세검색)
+  3. States: pick weeks | maker/model | car-name | advanced | empty toast | grid
   4. Actions: 1.세부등급조회 · 2.차량번호조회
 -->
 <script>
@@ -30,21 +30,30 @@
 <div class="glass-card p-3 mb-3">
   <p class="small text-muted mb-2">{{ i18n.hammer_avg }} · {{ i18n.unit_man }} · {{ i18n.car_name_search_hint }}</p>
   <div class="row g-2 align-items-end">
-    <div class="col-6 col-md-3 col-lg-2">
+    <div class="col-6 col-md-2 col-lg-2">
       <label class="form-label small mb-1" for="weekFrom">{{ i18n.week_from }}</label>
       <select id="weekFrom" class="form-select" required>
         <option value="">—</option>
         {% for w in weeks %}<option value="{{ w.value }}">{{ w.label }}</option>{% endfor %}
       </select>
     </div>
-    <div class="col-6 col-md-3 col-lg-2">
+    <div class="col-6 col-md-2 col-lg-2">
       <label class="form-label small mb-1" for="weekTo">{{ i18n.week_to }}</label>
       <select id="weekTo" class="form-select" required>
         <option value="">—</option>
         {% for w in weeks %}<option value="{{ w.value }}">{{ w.label }}</option>{% endfor %}
       </select>
     </div>
-    <div class="col-12 col-md-6 col-lg-4">
+    <div class="col-6 col-md-2">
+      <label class="form-label small mb-1" for="f-maker">{{ i18n.maker }}</label>
+      <select id="f-maker" class="form-select"><option value="">—</option>
+        {% for m in makers %}<option value="{{ m.value }}">{{ m.label }}</option>{% endfor %}</select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small mb-1" for="f-model">{{ i18n.model }}</label>
+      <select id="f-model" class="form-select" disabled><option value="">—</option></select>
+    </div>
+    <div class="col-12 col-md-4 col-lg-3">
       <label class="form-label small mb-1" for="f-car-name">{{ i18n.car_name }}</label>
       <input type="search" id="f-car-name" class="form-control" placeholder="{{ i18n.car_name_ph }}" autocomplete="off">
     </div>
@@ -56,15 +65,6 @@
     </div>
   </div>
   <div id="advancedFilters" class="row g-2 align-items-end mt-2 d-none border-top pt-3">
-    <div class="col-6 col-md">
-      <label class="form-label small mb-1">{{ i18n.maker }}</label>
-      <select id="f-maker" class="form-select"><option value="">—</option>
-        {% for m in makers %}<option value="{{ m.value }}">{{ m.label }}</option>{% endfor %}</select>
-    </div>
-    <div class="col-6 col-md">
-      <label class="form-label small mb-1">{{ i18n.model }}</label>
-      <select id="f-model" class="form-select" disabled><option value="">—</option></select>
-    </div>
     <div class="col-6 col-md">
       <label class="form-label small mb-1">{{ i18n.mdetail }}</label>
       <select id="f-mdetail" class="form-select" disabled><option value="">—</option></select>
@@ -244,5 +244,5 @@
     </div>
   </div>
 </div>
-<script src="{{ url_for('static', filename='js/market.js') }}?v=10"></script>
+<script src="{{ url_for('static', filename='js/market.js') }}?v=11"></script>
 {% endblock %}
