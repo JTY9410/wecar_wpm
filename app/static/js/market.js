@@ -413,19 +413,16 @@
           item.grade_name, item.gdetail_name, item.accident_detail, item.hope_price != null ? `희망 ${item.hope_price}` : "",
         ].filter(Boolean).join(" · ");
         return `<tr>
+          <td class="small text-nowrap">${esc(item.auction_date || "-")}</td>
           <td>
             <div class="fw-semibold">${esc(item.car_name || "-")}</div>
             <div class="small text-muted">${esc(detail)}</div>
           </td>
           <td>${esc(item.car_year)}</td>
-          <td>${esc(item.fuel || "-")}</td>
-          <td>${esc(item.awd || "-")}</td>
           <td>${item.car_km != null ? Number(item.car_km).toLocaleString() + "km" : esc(item.km_bin || "-")}</td>
-          <td class="text-end fw-bold">${item.hammer_price != null ? Number(item.hammer_price).toLocaleString() : "-"}</td>
           <td>${esc(item.accident_grade || item.accident_status || "-")}</td>
-          <td class="small">${esc(item.xx_exchange || "-")}</td>
-          <td class="small">${esc(item.w_panel || "-")}</td>
-          <td class="small">${esc(item.auction_date || "-")}</td>
+          <td class="text-end fw-bold">${item.hammer_price != null ? Number(item.hammer_price).toLocaleString() : "-"}</td>
+          <td class="small">${esc(item.imported || "-")}</td>
         </tr>`;
       }).join("");
       g("bpSamplesContent").classList.remove("d-none");

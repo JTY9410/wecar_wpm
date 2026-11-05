@@ -15,12 +15,12 @@ def test_mileage_bins_10k(app):
 
 
 def test_classify_accident_grades():
-    assert classify_accident("무사고", 0, 0) == ("무사고", True)
-    assert classify_accident("단순교환", 0, 0) == ("단순교환", False)
-    assert classify_accident("골격판금", "프론트펜더(좌)", 0) == ("골격판금", False)
-    assert classify_accident("사고", 0, "도어(좌)") == ("외판판금", False)
-    assert classify_accident("사고", "본넷", 0) == ("외판교환", False)
-    assert classify_accident(None, None, None) == ("무사고", True)
+    assert classify_accident("무사고", 0, 0) == ("A-무사고", True)
+    assert classify_accident("단순교환", 0, 0) == ("B-단순교환", False)
+    assert classify_accident("골격판금", "프론트펜더(좌)", 0) == ("E-골격판금", False)
+    assert classify_accident("사고", 0, "도어(좌)") == ("D-외판판금", False)
+    assert classify_accident("사고", "본넷", 0) == ("C-외판교환", False)
+    assert classify_accident(None, None, None) == ("A-무사고", True)
 
 
 def test_accident_free():
