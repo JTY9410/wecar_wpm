@@ -48,13 +48,8 @@ def test_market_page_primary_and_advanced_fields(app, client):
     assert 'id="f-matrix"' in html
     assert 'id="f-advanced-toggle"' not in html
     assert 'id="f-export"' in html
-    assert 'id="advancedFilters"' in html
-    assert 'd-none border-top' not in html.split('id="advancedFilters"', 1)[1][:80]
     assert 'id="f-maker"' in html
     assert 'id="f-model"' in html
-    # 제조사·모델명은 기본줄(상세 필터 패널보다 앞)
-    assert html.index('id="f-maker"') < html.index('id="advancedFilters"')
-    assert html.index('id="f-model"') < html.index('id="advancedFilters"')
     assert 'id="f-mdetail"' in html
     assert 'id="f-grade"' in html
     assert 'id="f-gdetail"' in html
@@ -62,6 +57,13 @@ def test_market_page_primary_and_advanced_fields(app, client):
     assert 'id="f-fuel"' in html
     assert 'id="f-km"' in html
     assert 'id="f-awd"' not in html
+    # 필터 뒤 → 검색·매트릭스·엑셀
+    assert html.index('id="f-maker"') < html.index('id="f-model"') < html.index('id="f-mdetail"')
+    assert html.index('id="f-mdetail"') < html.index('id="f-grade"') < html.index('id="f-gdetail"')
+    assert html.index('id="f-gdetail"') < html.index('id="f-year"') < html.index('id="f-fuel"')
+    assert html.index('id="f-fuel"') < html.index('id="f-km"')
+    assert html.index('id="f-km"') < html.index('id="f-search"')
+    assert html.index('id="f-search"') < html.index('id="f-matrix"') < html.index('id="f-export"')
 
 
 def test_market_js_search_runs_matrix():

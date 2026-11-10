@@ -29,67 +29,65 @@
 <div id="modeTrim">
 <div class="glass-card p-3 mb-3">
   <p class="small text-muted mb-2">{{ i18n.hammer_avg }} · {{ i18n.unit_man }} · {{ i18n.car_name_search_hint }}</p>
-  <div class="row g-2 align-items-end">
-    <div class="col-6 col-md-2 col-lg-2">
+  <div id="advancedFilters" class="row g-2 g-md-3 align-items-end market-trim-filters">
+    <div class="col-6 col-md-3 col-xl-2">
       <label class="form-label small mb-1" for="weekFrom">{{ i18n.week_from }}</label>
       <select id="weekFrom" class="form-select" required>
         <option value="">—</option>
         {% for w in weeks %}<option value="{{ w.value }}">{{ w.label }}</option>{% endfor %}
       </select>
     </div>
-    <div class="col-6 col-md-2 col-lg-2">
+    <div class="col-6 col-md-3 col-xl-2">
       <label class="form-label small mb-1" for="weekTo">{{ i18n.week_to }}</label>
       <select id="weekTo" class="form-select" required>
         <option value="">—</option>
         {% for w in weeks %}<option value="{{ w.value }}">{{ w.label }}</option>{% endfor %}
       </select>
     </div>
-    <div class="col-6 col-md-2">
+    <div class="col-12 col-md-6 col-xl-4">
+      <label class="form-label small mb-1" for="f-car-name">{{ i18n.car_name }}</label>
+      <input type="search" id="f-car-name" class="form-control" placeholder="{{ i18n.car_name_ph }}" autocomplete="off">
+    </div>
+    <div class="col-6 col-md-3 col-xl-2">
       <label class="form-label small mb-1" for="f-maker">{{ i18n.maker }}</label>
       <select id="f-maker" class="form-select"><option value="">—</option>
         {% for m in makers %}<option value="{{ m.value }}">{{ m.label }}</option>{% endfor %}</select>
     </div>
-    <div class="col-6 col-md-2">
+    <div class="col-6 col-md-3 col-xl-2">
       <label class="form-label small mb-1" for="f-model">{{ i18n.model }}</label>
       <select id="f-model" class="form-select" disabled><option value="">—</option></select>
     </div>
-    <div class="col-12 col-md-4 col-lg-3">
-      <label class="form-label small mb-1" for="f-car-name">{{ i18n.car_name }}</label>
-      <input type="search" id="f-car-name" class="form-control" placeholder="{{ i18n.car_name_ph }}" autocomplete="off">
-    </div>
-    <div class="col-auto d-flex gap-2 flex-wrap">
-      <button id="f-search" type="button" class="btn btn-primary px-3">{{ i18n.search }}</button>
-      <button id="f-matrix" type="button" class="btn btn-outline-primary px-3">{{ i18n.matrix }}</button>
-      <button id="f-export" type="button" class="btn btn-outline-secondary px-3">{{ i18n.export_excel }}</button>
-    </div>
-  </div>
-  <div id="advancedFilters" class="row g-2 align-items-end mt-3 pt-3 border-top">
-    <div class="col-6 col-md">
-      <label class="form-label small mb-1">{{ i18n.mdetail }}</label>
+    <div class="col-6 col-md-3 col-xl-2">
+      <label class="form-label small mb-1" for="f-mdetail">{{ i18n.mdetail }}</label>
       <select id="f-mdetail" class="form-select" disabled><option value="">—</option></select>
     </div>
-    <div class="col-6 col-md">
-      <label class="form-label small mb-1">{{ i18n.grade }}</label>
+    <div class="col-6 col-md-3 col-xl-2">
+      <label class="form-label small mb-1" for="f-grade">{{ i18n.grade }}</label>
       <select id="f-grade" class="form-select" disabled><option value="">—</option></select>
     </div>
-    <div class="col-6 col-md">
-      <label class="form-label small mb-1">{{ i18n.gdetail }}</label>
+    <div class="col-6 col-md-3 col-xl-2">
+      <label class="form-label small mb-1" for="f-gdetail">{{ i18n.gdetail }}</label>
       <select id="f-gdetail" class="form-select" disabled><option value="">—</option></select>
     </div>
-    <div class="col-6 col-md">
-      <label class="form-label small mb-1">{{ i18n.year }}</label>
+    <div class="col-6 col-md-3 col-xl-2">
+      <label class="form-label small mb-1" for="f-year">{{ i18n.year }}</label>
       <select id="f-year" class="form-select" disabled><option value="">—</option></select>
     </div>
-    <div class="col-6 col-md">
-      <label class="form-label small mb-1">{{ i18n.fuel }}</label>
+    <div class="col-6 col-md-3 col-xl-2">
+      <label class="form-label small mb-1" for="f-fuel">{{ i18n.fuel }}</label>
       <select id="f-fuel" class="form-select" disabled><option value="">—</option></select>
     </div>
-    <div class="col-6 col-md">
+    <div class="col-6 col-md-3 col-xl-2">
       <label class="form-label small mb-1" for="f-km">{{ i18n.km_bin }}</label>
       <select id="f-km" class="form-select">
         <option value="">—</option>
         {% for k in km_bins %}<option value="{{ k.value }}">{{ k.label }}</option>{% endfor %}
       </select>
+    </div>
+    <div class="col-12 col-xl-auto d-flex gap-2 flex-wrap align-items-end pb-1">
+      <button id="f-search" type="button" class="btn btn-primary px-3">{{ i18n.search }}</button>
+      <button id="f-matrix" type="button" class="btn btn-outline-primary px-3">{{ i18n.matrix }}</button>
+      <button id="f-export" type="button" class="btn btn-outline-secondary px-3">{{ i18n.export_excel }}</button>
     </div>
   </div>
 </div>
