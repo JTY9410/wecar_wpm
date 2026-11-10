@@ -22,7 +22,7 @@
   "w_panel": "W板金",
   "car_name_ph": "例: フォルクスワーゲン CC",
   "car_name_hint": "車名を入力して検索してください。",
-  "car_name_search_hint": "車名検索が基本です。詳細検索でメーカー・グレードを絞れます。",
+  "car_name_search_hint": "回数・メーカー・モデル・車名で検索すると一覧とマトリクスが一緒に更新されます。",
   "advanced_search": "詳細検索",
   "km_bin": "走行区間",
   "sample_count": "標本",

@@ -22,7 +22,7 @@
   "w_panel": "Panel repair",
   "car_name_ph": "e.g. Volkswagen CC, Grandeur IG",
   "car_name_hint": "Enter a car name and search.",
-  "car_name_search_hint": "Car-name search is default. Use Advanced for maker/trim filters.",
+  "car_name_search_hint": "Search by week, maker, model, or car name to refresh the list and matrix together.",
   "advanced_search": "Advanced",
   "km_bin": "Mileage band",
   "sample_count": "Samples",

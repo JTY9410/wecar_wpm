@@ -7,8 +7,8 @@
 <!--
   [UI Flow]
   1. Auth: login
-  2. Data: GET /api/grid?week_from&week_to&maker&model&car_name=… · cascade (상세검색)
-  3. States: pick weeks | maker/model | car-name | advanced | empty toast | grid
+  2. Data: GET /api/grid?week_from&week_to&maker&model&car_name=… · cascade · matrix
+  3. States: pick weeks | filters | empty toast | grid + matrix
   4. Actions: 1.세부등급조회 · 2.차량번호조회
 -->
 <script>
@@ -60,11 +60,10 @@
     <div class="col-auto d-flex gap-2 flex-wrap">
       <button id="f-search" type="button" class="btn btn-primary px-3">{{ i18n.search }}</button>
       <button id="f-matrix" type="button" class="btn btn-outline-primary px-3">{{ i18n.matrix }}</button>
-      <button id="f-advanced-toggle" type="button" class="btn btn-outline-secondary px-3" aria-expanded="false">{{ i18n.advanced_search }}</button>
       <button id="f-export" type="button" class="btn btn-outline-secondary px-3">{{ i18n.export_excel }}</button>
     </div>
   </div>
-  <div id="advancedFilters" class="row g-2 align-items-end mt-2 d-none border-top pt-3">
+  <div id="advancedFilters" class="row g-2 align-items-end mt-3 pt-3 border-top">
     <div class="col-6 col-md">
       <label class="form-label small mb-1">{{ i18n.mdetail }}</label>
       <select id="f-mdetail" class="form-select" disabled><option value="">—</option></select>
@@ -163,7 +162,7 @@
         <div class="min-w-0 flex-grow-1 pe-2">
           <p class="section-kicker mb-1">SAMPLES</p>
           <h5 class="modal-title mb-0" id="bpSamplesModalLabel">{{ i18n.samples_title }}</h5>
-          <p class="small text-muted mb-0 text-truncate" id="bpSamplesSubtitle"></p>
+          <p class="small text-muted mb-0 bp-samples-subtitle" id="bpSamplesSubtitle"></p>
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ i18n.close }}"></button>
       </div>

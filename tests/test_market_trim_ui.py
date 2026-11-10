@@ -46,12 +46,13 @@ def test_market_page_primary_and_advanced_fields(app, client):
     assert 'id="f-car-name"' in html
     assert 'id="f-search"' in html
     assert 'id="f-matrix"' in html
-    assert 'id="f-advanced-toggle"' in html
+    assert 'id="f-advanced-toggle"' not in html
     assert 'id="f-export"' in html
     assert 'id="advancedFilters"' in html
+    assert 'd-none border-top' not in html.split('id="advancedFilters"', 1)[1][:80]
     assert 'id="f-maker"' in html
     assert 'id="f-model"' in html
-    # 제조사·모델명은 기본줄(상세검색 패널보다 앞)
+    # 제조사·모델명은 기본줄(상세 필터 패널보다 앞)
     assert html.index('id="f-maker"') < html.index('id="advancedFilters"')
     assert html.index('id="f-model"') < html.index('id="advancedFilters"')
     assert 'id="f-mdetail"' in html
@@ -61,6 +62,16 @@ def test_market_page_primary_and_advanced_fields(app, client):
     assert 'id="f-fuel"' in html
     assert 'id="f-km"' in html
     assert 'id="f-awd"' not in html
+
+
+def test_market_js_search_runs_matrix():
+    js = open("app/static/js/market.js", encoding="utf-8").read()
+    assert "f-advanced-toggle" not in js
+    # 검색 성공 후 매트릭스 자동 호출
+    assert "renderMatrix(f)" in js
+    idx = js.index("async function runTrimSearch")
+    chunk = js[idx:idx + 900]
+    assert "renderMatrix" in chunk
 
 
 def test_matrix_by_car_name_only(app, db):

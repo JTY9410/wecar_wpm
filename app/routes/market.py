@@ -267,6 +267,8 @@ def samples():
         fuel=request.args.get("fuel"),
         awd=request.args.get("awd"),
         accident_free=request.args.get("accident_free"),
+        week_from=request.args.get("week_from"),
+        week_to=request.args.get("week_to"),
         lang=_lang(),
     ))
 

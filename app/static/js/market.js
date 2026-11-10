@@ -100,7 +100,7 @@
     return p.toString();
   }
 
-  /** data-* 속성으로 안전하게 전달 (JSON-in-attr 깨짐 방지) */
+  /** data-* 속성으로 안전하게 전달 (제목·한글은 encode로 속성 깨짐 방지) */
   function dataAttrs(obj) {
     const map = {
       maker: "maker",
@@ -113,16 +113,30 @@
       fuel: "fuel",
       awd: "awd",
       accident_free: "accident-free",
+      week_from: "week-from",
+      week_to: "week-to",
       title: "sample-title",
     };
     return Object.entries(map)
       .filter(([k]) => obj[k] !== undefined && obj[k] !== null && obj[k] !== "")
-      .map(([k, attr]) => `data-${attr}="${esc(obj[k])}"`)
+      .map(([k, attr]) => {
+        const raw = String(obj[k]);
+        const val = k === "title" ? encodeURIComponent(raw) : esc(raw);
+        return `data-${attr}="${val}"`;
+      })
       .join(" ");
   }
 
   function readPayload(el) {
     const d = el.dataset;
+    let title = "";
+    if (d.sampleTitle) {
+      try { title = decodeURIComponent(d.sampleTitle); } catch (e) { title = d.sampleTitle; }
+    }
+    if (!title) {
+      title = [d.maker, d.mdetailName || d.modelName, d.carYear, d.kmBin]
+        .filter(Boolean).join(" · ");
+    }
     return {
       maker: d.maker || "",
       model_name: d.modelName || "",
@@ -134,7 +148,9 @@
       fuel: d.fuel || "",
       awd: d.awd || "",
       accident_free: d.accidentFree || "",
-      title: d.sampleTitle || "",
+      week_from: d.weekFrom || (g("weekFrom") && g("weekFrom").value) || "",
+      week_to: d.weekTo || (g("weekTo") && g("weekTo").value) || "",
+      title,
     };
   }
 
@@ -170,11 +186,13 @@
   };
 
   function rowActions(x) {
+    const f = filters();
     const payload = {
       maker: x.maker, model_name: x.model_name, mdetail_name: x.mdetail_name,
       grade_name: x.grade_name, gdetail_name: x.gdetail_name,
       car_year: x.car_year, km_bin: x.km_bin, fuel: x.fuel, awd: x.awd,
       accident_free: x.is_accident_free_flag ? "1" : "0",
+      week_from: f.week_from, week_to: f.week_to,
       title: [lbl(x, "car_name") || x.car_name, x.car_year, x.km_bin, x.accident_grade]
         .filter(Boolean).join(" · "),
     };
@@ -222,13 +240,6 @@
     window.location.href = "/api/export/grid?" + qs(f);
   };
 
-  g("f-advanced-toggle").onclick = () => {
-    const box = g("advancedFilters");
-    const open = box.classList.toggle("d-none") === false;
-    g("f-advanced-toggle").setAttribute("aria-expanded", open ? "true" : "false");
-    g("f-advanced-toggle").classList.toggle("active", open);
-  };
-
   async function runTrimSearch() {
     const f = filters();
     if (!hasWeeks(f)) {
@@ -249,6 +260,7 @@
         return;
       }
       renderGridRows(data);
+      if (hasMatrixCriteria(f)) renderMatrix(f);
     } catch (e) {
       g("grid").innerHTML = `<tr><td colspan="9" class="text-center text-danger py-4">${esc(t("search_fail"))}</td></tr>`;
       toast(t("search_fail"), "danger");
@@ -355,7 +367,10 @@
           if (v == null) return "<td>-</td>";
           const cell = {
             ...params, car_year: y, km_bin: b,
-            title: [params.maker, params.gdetail_name || params.mdetail_name, y, b].filter(Boolean).join(" · "),
+            week_from: params.week_from || (g("weekFrom") && g("weekFrom").value) || "",
+            week_to: params.week_to || (g("weekTo") && g("weekTo").value) || "",
+            title: [params.maker, params.gdetail_name || params.mdetail_name || params.model_name, y, b]
+              .filter(Boolean).join(" · "),
           };
           return `<td title="${esc(t("sample_count"))} ${c}">
             <button type="button" class="btn btn-link p-0 sample-btn fw-semibold" ${dataAttrs(cell)}>
@@ -388,8 +403,11 @@
 
   async function openSamples(payload) {
     if (!modal) return toast(t("samples_empty"), "warning");
-    g("bpSamplesModalLabel").textContent = t("samples_title");
-    g("bpSamplesSubtitle").textContent = payload.title || "";
+    const heading = payload.title
+      || [payload.maker, payload.mdetail_name || payload.model_name, payload.car_year, payload.km_bin]
+        .filter(Boolean).join(" · ");
+    g("bpSamplesModalLabel").textContent = heading || t("samples_title");
+    g("bpSamplesSubtitle").textContent = heading ? t("samples_title") : "";
     g("bpSamplesLoading").classList.remove("d-none");
     g("bpSamplesEmpty").classList.add("d-none");
     g("bpSamplesContent").classList.add("d-none");

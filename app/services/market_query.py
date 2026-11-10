@@ -451,12 +451,20 @@ def matrix(maker=None, model_name=None, mdetail_name=None, grade_name=None,
 
 def samples(maker=None, model_name=None, mdetail_name=None, grade_name=None,
             gdetail_name=None, car_year=None, km_bin=None, fuel=None, awd=None,
-            accident_free=None, lang="ko", limit=200):
+            accident_free=None, week_from=None, week_to=None, lang="ko", limit=200):
     """세부내역 — 낙찰가 > 0 인 경매 원장만."""
     stmt = db.select(AuctionRecord).where(
         AuctionRecord.hammer_price.isnot(None),
         AuctionRecord.hammer_price > 0,
     )
+    wf = (week_from or "").strip() or None
+    wt = (week_to or "").strip() or None
+    if wf and wt:
+        selected = _weeks_in_range(wf, wt)
+        if selected:
+            stmt = stmt.where(AuctionRecord.week_no.in_(selected))
+        else:
+            return {"ok": True, "count": 0, "items": [], "price_basis": "hammer"}
     if maker:
         stmt = stmt.where(AuctionRecord.maker == maker)
     if model_name:

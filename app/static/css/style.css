@@ -1524,6 +1524,36 @@ body.app-body {
     gap: .75rem;
 }
 
+.bp-samples-modal .bp-samples-subtitle {
+    white-space: normal;
+    overflow: visible;
+    word-break: keep-all;
+    line-height: 1.4;
+}
+
+.bp-samples-modal .modal-title {
+    white-space: normal;
+    word-break: keep-all;
+    line-height: 1.35;
+}
+
+/* 전체시세보기 검색 필터 — 항목이 충분히 보이도록 */
+.market-full-filters .form-select,
+.market-full-filters .form-control {
+    min-width: 0;
+    width: 100%;
+}
+
+.market-full-filters .form-label {
+    white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+    .market-full-filters .mf-field {
+        min-width: 10.5rem;
+    }
+}
+
 .bp-samples-table {
     min-width: 640px;
 }
