@@ -74,6 +74,15 @@ def test_market_js_search_runs_matrix():
     idx = js.index("async function runTrimSearch")
     chunk = js[idx:idx + 900]
     assert "renderMatrix" in chunk
+    # 누락 DOM에서도 검색 바인딩이 죽지 않도록 null-safe
+    assert 'function on(id, event, handler)' in js
+    assert 'on("f-search"' in js
+
+
+def test_market_page_uses_cache_busted_market_js(client):
+    login(client)
+    html = client.get("/").get_data(as_text=True)
+    assert "market.js?v=12" in html
 
 
 def test_matrix_by_car_name_only(app, db):

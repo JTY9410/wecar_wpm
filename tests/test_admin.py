@@ -177,11 +177,9 @@ def test_nginx_buffers_upload_body():
 
 def test_service_worker_cache_bumped(client):
     js = client.get("/service-worker.js").get_data(as_text=True)
-    assert "wecar-wpm-v1" not in js
-    assert "wecar-wpm-v6" not in js
-    assert "wecar-wpm-v7" not in js
-    assert "wecar-wpm-v8" not in js
-    assert "wecar-wpm-v9" in js
+    assert 'CACHE_NAME = "wecar-wpm-v10"' in js
+    for old in ("v6", "v7", "v8", "v9"):
+        assert f'CACHE_NAME = "wecar-wpm-{old}"' not in js
 
 
 def test_admin_dashboard_upload_js_handles_gateway_errors(client):

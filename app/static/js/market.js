@@ -20,11 +20,13 @@
   }
 
   function resetSelect(sel) {
+    if (!sel) return;
     sel.innerHTML = `<option value="">—</option>`;
     sel.disabled = true;
   }
 
   async function fill(sel, url) {
+    if (!sel) return;
     sel.disabled = true;
     sel.innerHTML = `<option value="">…</option>`;
     try {
@@ -41,7 +43,15 @@
       sel.disabled = false;
     } catch (e) {
       sel.innerHTML = `<option value="">—</option>`;
+      sel.disabled = false;
     }
+  }
+
+  function on(id, event, handler) {
+    const el = g(id);
+    if (!el) return null;
+    el[event] = handler;
+    return el;
   }
 
   function lbl(row, key) {
@@ -154,36 +164,36 @@
     };
   }
 
-  g("f-maker").onchange = () => {
+  on("f-maker", "onchange", () => {
     resetSelect(g("f-model")); resetSelect(g("f-mdetail")); resetSelect(g("f-grade"));
     resetSelect(g("f-gdetail")); resetSelect(g("f-year")); resetSelect(g("f-fuel"));
-    if (g("f-maker").value) {
+    if (g("f-maker") && g("f-maker").value) {
       fill(g("f-model"), `/api/cascade/models?maker=${encodeURIComponent(g("f-maker").value)}`);
       fill(g("f-fuel"), `/api/cascade/fuels?maker=${encodeURIComponent(g("f-maker").value)}`);
     }
     refreshKmBins();
-  };
-  g("f-model").onchange = () => {
+  });
+  on("f-model", "onchange", () => {
     resetSelect(g("f-mdetail")); resetSelect(g("f-grade")); resetSelect(g("f-gdetail")); resetSelect(g("f-year"));
-    if (g("f-model").value) {
+    if (g("f-model") && g("f-model").value) {
       fill(g("f-mdetail"), `/api/cascade/car_names?${qs({ maker: g("f-maker").value, model_name: g("f-model").value })}`);
     }
     refreshKmBins();
-  };
-  if (g("weekFrom")) g("weekFrom").onchange = refreshKmBins;
-  if (g("weekTo")) g("weekTo").onchange = refreshKmBins;
-  g("f-mdetail").onchange = () => {
+  });
+  on("weekFrom", "onchange", refreshKmBins);
+  on("weekTo", "onchange", refreshKmBins);
+  on("f-mdetail", "onchange", () => {
     resetSelect(g("f-grade")); resetSelect(g("f-gdetail")); resetSelect(g("f-year"));
-    if (g("f-mdetail").value) {
+    if (g("f-mdetail") && g("f-mdetail").value) {
       const f = filters();
       fill(g("f-grade"), `/api/cascade/grades?${qs(f)}`);
       fill(g("f-year"), `/api/cascade/years?${qs(f)}`);
     }
-  };
-  g("f-grade").onchange = () => {
+  });
+  on("f-grade", "onchange", () => {
     resetSelect(g("f-gdetail"));
-    if (g("f-grade").value) fill(g("f-gdetail"), `/api/cascade/gdetails?${qs(filters())}`);
-  };
+    if (g("f-grade") && g("f-grade").value) fill(g("f-gdetail"), `/api/cascade/gdetails?${qs(filters())}`);
+  });
 
   function rowActions(x) {
     const f = filters();
@@ -233,12 +243,12 @@
     </tr>`).join("");
   }
 
-  g("f-export").onclick = () => {
+  on("f-export", "onclick", () => {
     const f = filters();
     if (!hasWeeks(f)) return toast(t("pick_weeks"), "warning");
     if (!hasSearchCriteria(f)) return toast(t("car_name_hint"), "warning");
     window.location.href = "/api/export/grid?" + qs(f);
-  };
+  });
 
   async function runTrimSearch() {
     const f = filters();
@@ -250,27 +260,35 @@
       toast(t("car_name_hint"), "warning");
       return;
     }
-    g("grid").innerHTML = `<tr><td colspan="9" class="text-center py-4 text-muted">${esc(t("searching"))}</td></tr>`;
+    if (g("grid")) {
+      g("grid").innerHTML = `<tr><td colspan="9" class="text-center py-4 text-muted">${esc(t("searching"))}</td></tr>`;
+    }
     try {
       const r = await fetch("/api/grid?" + qs(f));
       const data = await r.json();
       if (!r.ok || (data && data.ok === false)) {
-        g("grid").innerHTML = `<tr><td colspan="9" class="text-center text-danger py-4">${esc((data && data.error) || t("search_fail"))}</td></tr>`;
+        if (g("grid")) {
+          g("grid").innerHTML = `<tr><td colspan="9" class="text-center text-danger py-4">${esc((data && data.error) || t("search_fail"))}</td></tr>`;
+        }
         toast((data && data.error) || t("pick_weeks"), "warning");
         return;
       }
       renderGridRows(data);
       if (hasMatrixCriteria(f)) renderMatrix(f);
     } catch (e) {
-      g("grid").innerHTML = `<tr><td colspan="9" class="text-center text-danger py-4">${esc(t("search_fail"))}</td></tr>`;
+      if (g("grid")) {
+        g("grid").innerHTML = `<tr><td colspan="9" class="text-center text-danger py-4">${esc(t("search_fail"))}</td></tr>`;
+      }
       toast(t("search_fail"), "danger");
     }
   }
 
-  g("f-search").onclick = runTrimSearch;
-  g("f-car-name").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") runTrimSearch();
-  });
+  on("f-search", "onclick", runTrimSearch);
+  if (g("f-car-name")) {
+    g("f-car-name").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") runTrimSearch();
+    });
+  }
 
   function setMarketMode(mode) {
     const trim = mode !== "plate";
@@ -335,20 +353,25 @@
     }
   }
 
-  g("plateSearch").onclick = searchByPlate;
-  g("plateCarNo").addEventListener("keydown", (e) => {
+  on("plateSearch", "onclick", searchByPlate);
+  if (g("plateCarNo")) g("plateCarNo").addEventListener("keydown", (e) => {
     if (e.key === "Enter") searchByPlate();
   });
 
   async function renderMatrix(params) {
     const panel = g("matrixPanel");
+    if (!panel) return;
     panel.classList.remove("d-none");
-    g("matrixSub").textContent = [
-      params.maker, params.model_name, params.mdetail_name,
-      params.grade_name, params.gdetail_name, params.fuel, params.awd,
-    ].filter(Boolean).join(" · ");
-    g("matrixHead").innerHTML = "";
-    g("matrixBody").innerHTML = `<tr><td class="text-muted py-3">${esc(t("searching"))}</td></tr>`;
+    if (g("matrixSub")) {
+      g("matrixSub").textContent = [
+        params.maker, params.model_name, params.mdetail_name,
+        params.grade_name, params.gdetail_name, params.fuel, params.awd,
+      ].filter(Boolean).join(" · ");
+    }
+    if (g("matrixHead")) g("matrixHead").innerHTML = "";
+    if (g("matrixBody")) {
+      g("matrixBody").innerHTML = `<tr><td class="text-muted py-3">${esc(t("searching"))}</td></tr>`;
+    }
     try {
       const r = await fetch("/api/matrix?" + qs(params));
       const data = await r.json();
@@ -386,12 +409,12 @@
     }
   }
 
-  g("f-matrix").onclick = () => {
+  on("f-matrix", "onclick", () => {
     const f = filters();
     if (!hasWeeks(f)) return toast(t("pick_weeks"), "warning");
     if (!hasMatrixCriteria(f)) return toast(t("matrix_need_criteria"), "warning");
     renderMatrix(f);
-  };
+  });
 
   const modalEl = g("bpSamplesModal");
   let modal = null;
